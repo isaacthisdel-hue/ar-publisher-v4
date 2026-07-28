@@ -722,8 +722,8 @@ function buildHTML(loggedIn) {
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    "three": "https://unpkg.com/three@0.185.1/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.185.1/examples/jsm/"
   }
 }
 </script>
@@ -1450,6 +1450,54 @@ function enhanceCanvas(ctx, w, h) {
 
 // ── IN-BROWSER GLB → USDZ CONVERTER ────────────────────────────────────────
 // Uses Three.js USDZExporter, loaded on-demand so it never slows the page.
+//
+// Why the old USDZ used to balloon past the compressed GLB size:
+// USDZExporter re-encodes every texture through a <canvas>. On old Three.js
+// builds it always re-encoded as lossless PNG, no matter what format the
+// source GLB texture was — so a GLB we'd already shrunk to JPEG at ~10 MB
+// came back out the other side as 15+ MB of PNG. Newer Three.js (bumped in
+// the importmap above) keeps JPEG when the source texture says so, but it
+// still re-encodes at the browser's default JPEG quality (~0.92) with no way
+// to configure it — a second, needlessly-high-quality re-compression on top
+// of textures we already compressed once. withJpegQuality() below patches
+// canvas.toBlob for the duration of the export so we control that quality
+// directly, and runUsdzExportUnder5MB() retries at smaller texture size /
+// lower quality until the file is under 5 MB, keeping the first (highest
+// detail) pass that clears the target.
+function withJpegQuality(quality, fn) {
+  var proto = HTMLCanvasElement.prototype;
+  var origToBlob = proto.toBlob;
+  proto.toBlob = function(callback, type, q) {
+    if (type === 'image/jpeg') return origToBlob.call(this, callback, type, quality);
+    return origToBlob.call(this, callback, type, q);
+  };
+  function restore(v) { proto.toBlob = origToBlob; return v; }
+  return Promise.resolve().then(fn).then(restore, function(err) { restore(); throw err; });
+}
+
+function runUsdzExportUnder5MB(exporter, scene, onProgress) {
+  var TARGET_BYTES = 5 * 1048576;
+  var passes = [
+    { maxTextureSize: 1024, quality: 0.82, label: 'full detail' },
+    { maxTextureSize: 1024, quality: 0.6,  label: 'reduced texture quality' },
+    { maxTextureSize: 768,  quality: 0.55, label: 'smaller textures' },
+    { maxTextureSize: 512,  quality: 0.5,  label: 'compact textures' }
+  ];
+  var i = 0;
+  function attempt() {
+    var p = passes[i];
+    if (onProgress) onProgress(p, i);
+    return withJpegQuality(p.quality, function() {
+      return exporter.parseAsync(scene, { maxTextureSize: p.maxTextureSize });
+    }).then(function(bytes) {
+      i++;
+      if (bytes.byteLength <= TARGET_BYTES || i >= passes.length) return bytes;
+      return attempt();
+    });
+  }
+  return attempt();
+}
+
 var convertBtn = document.getElementById('convertUsdzBtn');
 if (convertBtn) {
   convertBtn.addEventListener('click', function() {
@@ -1480,12 +1528,10 @@ if (convertBtn) {
         loader.parse(buffer, '', function(gltf) { resolve(gltf); }, function(err) { reject(err); });
       });
     }).then(function(gltf) {
-      setStatus('convert-status', 'info', '⏳ Converting to USDZ…');
       var exporter = new USDZExporter();
-      if (typeof exporter.parseAsync === 'function') {
-        return exporter.parseAsync(gltf.scene);
-      }
-      return exporter.parse(gltf.scene);
+      return runUsdzExportUnder5MB(exporter, gltf.scene, function(pass) {
+        setStatus('convert-status', 'info', '⏳ Converting to USDZ (' + pass.label + ')…');
+      });
     }).then(function(arraybuffer) {
       var blob = new Blob([arraybuffer], { type: 'model/vnd.usdz+zip' });
       var baseName = glbFile.name.replace(/\.glb$/i, '') || 'model';
@@ -1497,7 +1543,9 @@ if (convertBtn) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setStatus('convert-status', 'success', '✓ USDZ downloaded! Now upload it in the .usdz box below.');
+      var mb = (arraybuffer.byteLength / 1048576).toFixed(1);
+      var overTarget = arraybuffer.byteLength > 5 * 1048576;
+      setStatus('convert-status', 'success', '✓ USDZ downloaded (' + mb + ' MB)' + (overTarget ? ' — still above 5 MB even at lowest quality; try simplifying the GLB more' : '') + '! Now upload it in the .usdz box below.');
       convertBtn.disabled = false;
       convertBtn.textContent = '⚡ Convert GLB → USDZ (in browser)';
     }).catch(function(err) {
