@@ -1183,6 +1183,23 @@ ${!loggedIn ? `
 var cachedRestaurants = {};
 var currentMode = 'text';
 
+// Moved up from further down in the file (next to refreshCommand(), where it
+// used to live) — it MUST be defined before the very first refreshCommand()
+// call below, or CC_QUOTES.length throws and kills every button listener
+// that hadn't been registered yet.
+var CC_QUOTES = [
+  'Build young. Compound early. Buy your freedom decades before the average.',
+  'The average millionaire is 55. That is not the timeline.',
+  'When, not if.',
+  'Effort now so you can chill later.',
+  'The demo sells. Your job is to open, show, and stay quiet.',
+  'One yes changes the whole month.',
+  'Warm first. Cold after you have proof.',
+  'You are not selling. You are showing them money they are missing.',
+  'A calendar does not care how ready you feel.',
+  'Signed clients beat perfect code every time.'
+];
+
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function showTab(name) {
   document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active'); });
@@ -1683,7 +1700,7 @@ function onRestaurantChange() {
 
 if (document.getElementById('restaurantSelect')) loadRestaurantDropdown();
 // Load restaurants immediately on page ready so Command Center has real counts
-if (document.querySelector('body.app')) { loadRestaurants(); refreshCommand(); }
+if (document.querySelector('body.app')) { loadRestaurants(); openCommandModal(); }
 
 // ── RESTAURANT MANAGER ────────────────────────────────────────────────────────
 function loadRestaurants() {
@@ -1709,18 +1726,6 @@ function updateTopbarStats(data) {
 }
 
 // ── COMMAND CENTER ──────────────────────────────────────────────────
-var CC_QUOTES = [
-  'Build young. Compound early. Buy your freedom decades before the average.',
-  'The average millionaire is 55. That is not the timeline.',
-  'When, not if.',
-  'Effort now so you can chill later.',
-  'The demo sells. Your job is to open, show, and stay quiet.',
-  'One yes changes the whole month.',
-  'Warm first. Cold after you have proof.',
-  'You are not selling. You are showing them money they are missing.',
-  'A calendar does not care how ready you feel.',
-  'Signed clients beat perfect code every time.'
-];
 function refreshCommand() {
   // countdown to Aug 20 of the current year (or next year if already past)
   var now = new Date();
