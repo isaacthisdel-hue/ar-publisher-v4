@@ -6,6 +6,7 @@ const { mergeNutritionPanel } = require('./mergeNutritionPanel');
 const { recordEvent, getStats, getMenuStats, analyticsEnabled } = require('./analytics');
 const { manifestPath, upsertDish, buildMenuPage, MANIFEST } = require('./menu');
 const { buildSocialRow, SOCIAL_CSS, cleanSocials, buildReviewBlock, REVIEW_CSS, REVIEW_I18N } = require('./social');
+const { storageEnabled, loadRestaurants, saveRestaurants, DATA_DIR } = require('./store');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -14,9 +15,12 @@ app.use(cookieParser());
 
 const { GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, COOKIE_SECRET = 'changeme' } = process.env;
 
-// ── Restaurant store (in-memory, persists while Railway runs) ─────────────────
+// ── Restaurant store ────────────────────────────────────────────────────────
 // { 'bella-italia': { name: 'Bella Italia', branches: { 'downtown': 'Downtown', 'laval': 'Laval' } } }
-let restaurants = {};
+// Kept in memory for fast reads (same as before), but now loaded from — and
+// saved back to — a Railway Volume (see store.js) after every change, so it
+// survives redeploys instead of resetting every time the server restarts.
+let restaurants = loadRestaurants();
 
 function signToken(t) { return Buffer.from(COOKIE_SECRET + '|' + t).toString('base64'); }
 function unsignToken(s) {
@@ -76,6 +80,7 @@ app.post('/api/restaurants', (req, res) => {
     restaurants[slug].branches[bSlug] = branch.trim();
   }
 
+  saveRestaurants(restaurants);
   res.json({ success: true, slug, restaurant: restaurants[slug] });
 });
 
@@ -85,6 +90,7 @@ app.put('/api/restaurants/:slug/socials', (req, res) => {
   const { slug } = req.params;
   if (!restaurants[slug]) return res.status(404).json({ error: 'Restaurant not found' });
   restaurants[slug].socials = cleanSocials(req.body || {});
+  saveRestaurants(restaurants);
   res.json({ success: true, slug, socials: restaurants[slug].socials });
 });
 
@@ -95,6 +101,7 @@ app.put('/api/restaurants/:slug/review', (req, res) => {
   if (!restaurants[slug]) return res.status(404).json({ error: 'Restaurant not found' });
   const url = (req.body && req.body.reviewUrl || '').trim();
   restaurants[slug].reviewUrl = url;
+  saveRestaurants(restaurants);
   res.json({ success: true, slug, reviewUrl: url });
 });
 
@@ -104,6 +111,7 @@ app.put('/api/restaurants/:slug/signed', (req, res) => {
   const { slug } = req.params;
   if (!restaurants[slug]) return res.status(404).json({ error: 'Restaurant not found' });
   restaurants[slug].signed = !!(req.body && req.body.signed);
+  saveRestaurants(restaurants);
   res.json({ success: true, slug, signed: restaurants[slug].signed });
 });
 
@@ -117,6 +125,7 @@ app.post('/api/restaurants/:slug/branches', (req, res) => {
 
   const bSlug = slugify(branch);
   restaurants[slug].branches[bSlug] = branch.trim();
+  saveRestaurants(restaurants);
   res.json({ success: true, slug, restaurant: restaurants[slug] });
 });
 
@@ -124,6 +133,7 @@ app.post('/api/restaurants/:slug/branches', (req, res) => {
 app.delete('/api/restaurants/:slug', (req, res) => {
   if (!getToken(req)) return res.status(401).json({ error: 'Not logged in' });
   delete restaurants[req.params.slug];
+  saveRestaurants(restaurants);
   res.json({ success: true });
 });
 
@@ -132,7 +142,28 @@ app.delete('/api/restaurants/:slug/branches/:bSlug', (req, res) => {
   if (!getToken(req)) return res.status(401).json({ error: 'Not logged in' });
   const { slug, bSlug } = req.params;
   if (restaurants[slug]) delete restaurants[slug].branches[bSlug];
+  saveRestaurants(restaurants);
   res.json({ success: true });
+});
+
+// Past dishes published for a restaurant (optionally scoped to one branch —
+// pass ?branch=<bSlug>, or omit for a branch-less restaurant's repo root).
+// No new storage needed: dishes.json already lives forever in the
+// restaurant's GitHub repo (see menu.js) — this just reads it back, the
+// same way the live customer-facing menu page does.
+app.get('/api/restaurants/:slug/dishes', async (req, res) => {
+  if (!getToken(req)) return res.status(401).json({ error: 'Not logged in' });
+  const { slug } = req.params;
+  if (!restaurants[slug]) return res.status(404).json({ error: 'Restaurant not found' });
+  const branchSlug = (req.query.branch || '').toString();
+  const repoName = 'ar-' + slug;
+  try {
+    const manifest = await fetchManifest(repoName, branchSlug);
+    const dishes = manifest && Array.isArray(manifest.dishes) ? manifest.dishes : [];
+    res.json({ success: true, dishes });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load dishes: ' + (e.message || e) });
+  }
 });
 
 // ── PUBLISH ───────────────────────────────────────────────────────────────────
@@ -708,7 +739,15 @@ h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
 }
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0', () => console.log('Servision running on port ' + PORT));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('Servision running on port ' + PORT);
+  console.log(
+    storageEnabled()
+      ? 'Restaurant data persisted to ' + DATA_DIR + ' (Railway Volume attached).'
+      : 'WARNING: no writable volume at ' + DATA_DIR + ' — restaurant data will NOT survive a redeploy. ' +
+        'Attach a Railway Volume (Settings -> Volumes) mounted at ' + DATA_DIR + ' to fix this.'
+  );
+});
 
 // ── PUBLISHER UI ──────────────────────────────────────────────────────────────
 
@@ -1820,6 +1859,14 @@ function renderRestaurants(data) {
         qrBtn.setAttribute('data-bslug', bSlug);
         qrBtn.setAttribute('data-bname', r.branches[bSlug]);
         tag.appendChild(qrBtn);
+        var dishBtn = document.createElement('button');
+        dishBtn.textContent = '📋';
+        dishBtn.title = 'View past dishes published here';
+        dishBtn.setAttribute('data-action', 'view-dishes');
+        dishBtn.setAttribute('data-slug', slug);
+        dishBtn.setAttribute('data-bslug', bSlug);
+        dishBtn.setAttribute('data-bname', r.branches[bSlug]);
+        tag.appendChild(dishBtn);
         var xBtn = document.createElement('button');
         xBtn.textContent = '×';
         xBtn.title = 'Remove branch';
@@ -1843,6 +1890,16 @@ function renderRestaurants(data) {
       rootQr.setAttribute('data-bslug', '');
       rootQr.setAttribute('data-bname', r.name);
       branchesDiv.appendChild(rootQr);
+      var rootDishBtn = document.createElement('button');
+      rootDishBtn.className = 'btn-add-branch';
+      rootDishBtn.style.marginLeft = '6px';
+      rootDishBtn.textContent = '📋 Dishes';
+      rootDishBtn.title = 'View past dishes published here';
+      rootDishBtn.setAttribute('data-action', 'view-dishes');
+      rootDishBtn.setAttribute('data-slug', slug);
+      rootDishBtn.setAttribute('data-bslug', '');
+      rootDishBtn.setAttribute('data-bname', r.name);
+      branchesDiv.appendChild(rootDishBtn);
     }
 
     var addBranchBtn = document.createElement('button');
@@ -1983,6 +2040,8 @@ document.addEventListener('click', function(e) {
   if (action === 'save-branch') saveBranch(slug);
   if (action === 'copy') copyText(btn.getAttribute('data-copy'), btn);
   if (action === 'menu-qr') showMenuQR(slug, bSlug, btn.getAttribute('data-bname'));
+  if (action === 'view-dishes') showDishList(slug, bSlug, btn.getAttribute('data-bname'));
+  if (action === 'close-dish-list') { var dm = document.getElementById('dish-list-modal'); if (dm) dm.remove(); }
   if (action === 'toggle-socials') {
     var sf = document.getElementById('social-form-' + slug);
     if (sf) sf.style.display = sf.style.display === 'none' ? 'block' : 'none';
@@ -2089,6 +2148,54 @@ function showMenuQR(slug, bSlug, bName) {
     '</div>';
   modal.addEventListener('click', function(ev) { if (ev.target === modal) modal.remove(); });
   document.body.appendChild(modal);
+}
+
+// Shows every dish ever published to this restaurant/branch, pulled live
+// from its GitHub repo (dishes.json) — not stored anywhere new, since
+// GitHub has always been the permanent record of what's been published.
+// Each row links to the live AR page and its stats dashboard.
+function showDishList(slug, bSlug, bName) {
+  var existing = document.getElementById('dish-list-modal');
+  if (existing) existing.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'dish-list-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px';
+  modal.innerHTML =
+    '<div style="background:var(--surface);border:1px solid rgba(200,135,58,.4);border-radius:16px;padding:26px;max-width:460px;width:100%;max-height:78vh;overflow-y:auto;text-align:left">' +
+      '<div style="font-family:Cormorant Garamond,serif;font-size:22px;margin-bottom:2px">' + (bName || 'Menu') + '</div>' +
+      '<div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin-bottom:16px">Published Dishes</div>' +
+      '<div id="dish-list-body" style="font-size:13px;color:var(--muted)">Loading…</div>' +
+      '<div style="margin-top:16px;text-align:center"><button class="copy-btn" data-action="close-dish-list">Close</button></div>' +
+    '</div>';
+  modal.addEventListener('click', function(ev) { if (ev.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+
+  fetch('/api/restaurants/' + slug + '/dishes' + (bSlug ? '?branch=' + encodeURIComponent(bSlug) : ''))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var body = document.getElementById('dish-list-body');
+      if (!body) return;
+      if (data.error) { body.textContent = data.error; return; }
+      var dishes = data.dishes || [];
+      if (dishes.length === 0) { body.textContent = 'No dishes published here yet.'; return; }
+      var base = 'https://ar.servision.ca/' + slug + (bSlug ? '/' + bSlug : '') + '/';
+      body.innerHTML = dishes.map(function(d) {
+        var url = base + d.slug + '/';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">' +
+          '<div style="min-width:0"><div style="color:var(--cream);font-size:14px;overflow-wrap:anywhere">' + d.name + '</div>' +
+          (d.label ? '<div style="font-size:10.5px;color:var(--amber);text-transform:uppercase;letter-spacing:.08em">' + d.label + '</div>' : '') + '</div>' +
+          '<div style="display:flex;gap:6px;flex-shrink:0">' +
+            '<a href="' + url + '" target="_blank" class="copy-btn" style="text-decoration:none;font-size:11px">Open</a>' +
+            '<a href="' + url + 'dashboard" target="_blank" class="copy-btn" style="text-decoration:none;font-size:11px">Stats</a>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      var body = document.getElementById('dish-list-body');
+      if (body) body.textContent = 'Failed to load dishes — try again.';
+    });
 }
 
 function toggleAddBranch(slug) {
