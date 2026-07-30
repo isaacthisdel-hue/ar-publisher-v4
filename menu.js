@@ -99,6 +99,14 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Accent/case-insensitive text used for client-side menu search matching
+// (so "café" and "cafe", "Salmon" and "salmon" etc. all line up).
+function normalizeForSearch(s) {
+  return String(s == null ? '' : s)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().trim();
+}
+
 // Renders the menu index: one QR on the table opens this, every dish inside.
 function buildMenuPage(manifest, basePath) {
   const t = MENU_THEMES[manifest.theme] || MENU_THEMES['dark-elegant'];
@@ -113,8 +121,9 @@ function buildMenuPage(manifest, basePath) {
   const cards = dishes.map(function (d, i) {
     const href = esc(basePath + d.slug + '/');
     const label = d.label ? '<div class="dish-label">' + esc(d.label) + '</div>' : '';
+    const searchText = esc(normalizeForSearch((d.name || '') + ' ' + (d.label || '')));
     return (
-      '<a class="dish" href="' + href + '" style="animation-delay:' + (i * 55) + 'ms">' +
+      '<a class="dish" href="' + href + '" data-search="' + searchText + '" data-order="' + i + '" style="animation-delay:' + (i * 55) + 'ms">' +
         '<div class="dish-main">' +
           label +
           '<div class="dish-name">' + esc(d.name) + '</div>' +
@@ -132,6 +141,17 @@ function buildMenuPage(manifest, basePath) {
       '<div class="empty-title" data-i18n="emptyTitle">No dishes yet</div>' +
       '<div class="empty-sub" data-i18n="emptySub">This menu is being prepared.</div>' +
     '</div>';
+
+  // Search is only worth showing once there's enough menu to search through.
+  const showSearch = dishes.length > 5;
+  const searchBar = showSearch
+    ? '<div class="search-wrap">' +
+        '<svg class="search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>' +
+        '<input class="search-input" id="menuSearch" type="search" inputmode="search" enterkeyhint="search" ' +
+          'autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search menu" ' +
+          'data-i18n-placeholder="searchPlaceholder" oninput="filterMenu(this.value)">' +
+      '</div>'
+    : '';
 
   return `<!doctype html>
 <html lang="en">
@@ -157,6 +177,13 @@ header{text-align:center;margin-bottom:26px}
 .rule{width:44px;height:1px;background:var(--accent);opacity:.5;margin:12px auto}
 .kicker{font-size:10.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
 .lead{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.5}
+.search-wrap{position:relative;margin:18px 0 4px}
+.search-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:13px 16px 13px 42px;font-family:inherit;font-size:15px;color:var(--fg);outline:none;
+  -webkit-appearance:none;appearance:none;transition:border-color .15s ease}
+.search-input::placeholder{color:var(--muted)}
+.search-input:focus{border-color:color-mix(in srgb, var(--accent) 55%, transparent)}
+.search-icon{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
 .lang{position:absolute;top:max(env(safe-area-inset-top),16px);right:16px;display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden}
 .lang button{background:none;border:none;color:var(--muted);font-family:inherit;font-size:10px;font-weight:700;letter-spacing:.06em;padding:6px 11px;cursor:pointer;transition:.15s}
 .lang button.on{background:color-mix(in srgb, var(--accent) 16%, transparent);color:var(--accent)}
@@ -195,8 +222,13 @@ ${REVIEW_CSS}
     <div class="kicker" data-i18n="kicker">AR Menu</div>
     <p class="lead" data-i18n="lead">Tap any dish to see it in 3D on your table.</p>
   </header>
-  <div class="list">
+  ${searchBar}
+  <div class="list" id="menuList">
     ${dishes.length ? cards : emptyState}
+  </div>
+  <div class="empty" id="noResults" style="display:none">
+    <div class="empty-title" data-i18n="noResultsTitle">No dishes match</div>
+    <div class="empty-sub" data-i18n="noResultsSub">Try a different word, or clear the search.</div>
   </div>
   <footer>
     <span data-i18n="f1">Works on iPhone &amp; Android</span><span class="dot"></span><span data-i18n="f2">No app needed</span>
@@ -207,13 +239,16 @@ ${REVIEW_CSS}
 </div>
 <script>
 var T={
-  en:{kicker:'AR Menu',lead:'Tap any dish to see it in 3D on your table.',f1:'Works on iPhone & Android',f2:'No app needed',emptyTitle:'No dishes yet',emptySub:'This menu is being prepared.'},
-  fr:{kicker:'Menu RA',lead:'Appuyez sur un plat pour le voir en 3D sur votre table.',f1:'Compatible iPhone & Android',f2:'Sans application',emptyTitle:'Aucun plat pour le moment',emptySub:'Ce menu est en préparation.'}
+  en:{kicker:'AR Menu',lead:'Tap any dish to see it in 3D on your table.',f1:'Works on iPhone & Android',f2:'No app needed',emptyTitle:'No dishes yet',emptySub:'This menu is being prepared.',searchPlaceholder:'Search the menu…',noResultsTitle:'No dishes match',noResultsSub:'Try a different word, or clear the search.'},
+  fr:{kicker:'Menu RA',lead:'Appuyez sur un plat pour le voir en 3D sur votre table.',f1:'Compatible iPhone & Android',f2:'Sans application',emptyTitle:'Aucun plat pour le moment',emptySub:'Ce menu est en préparation.',searchPlaceholder:'Rechercher dans le menu…',noResultsTitle:'Aucun plat trouvé',noResultsSub:'Essayez un autre mot, ou effacez la recherche.'}
 };
 function setLang(l){
   var t=T[l]||T.en;
   document.querySelectorAll('[data-i18n]').forEach(function(el){
     var k=el.getAttribute('data-i18n'); if(t[k]) el.innerHTML=t[k];
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){
+    var k=el.getAttribute('data-i18n-placeholder'); if(t[k]) el.placeholder=t[k];
   });
   document.getElementById('l-en').className = l==='en'?'on':'';
   document.getElementById('l-fr').className = l==='fr'?'on':'';
@@ -225,6 +260,87 @@ function setLang(l){
   var l=saved||((navigator.language||'en').toLowerCase().indexOf('fr')===0?'fr':'en');
   setLang(l);
 })();
+
+// ── Menu search — fully client-side, no backend/service needed ─────────────
+// The whole dish list is already rendered into the page (see data-search on
+// each .dish), so matching against it is instant with zero network calls.
+// This handles: substrings, multi-word queries in any order, and light typo
+// tolerance (Levenshtein distance) so "samon" still finds "Salmon".
+function svNormalize(s){
+  return String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim();
+}
+function svLevenshtein(a,b){
+  if(a===b) return 0;
+  var al=a.length, bl=b.length;
+  if(!al) return bl;
+  if(!bl) return al;
+  var prev=[]; for(var j=0;j<=bl;j++) prev[j]=j;
+  for(var i=1;i<=al;i++){
+    var cur=[i];
+    for(var j2=1;j2<=bl;j2++){
+      var cost = a.charAt(i-1)===b.charAt(j2-1) ? 0 : 1;
+      cur[j2] = Math.min(prev[j2]+1, cur[j2-1]+1, prev[j2-1]+cost);
+    }
+    prev=cur;
+  }
+  return prev[bl];
+}
+// Higher score = better match. 0 = no match at all (every query word has to
+// hit something, so "chicken xyz123" won't match "Chicken Wings").
+function svMatchScore(dishText, query){
+  if(!query) return 1;
+  var words = query.split(/\\s+/).filter(Boolean);
+  var tokens = dishText.split(/\\s+/).filter(Boolean);
+  var total = 0;
+  for(var i=0;i<words.length;i++){
+    var w = words[i];
+    if(dishText.indexOf(w) !== -1){
+      total += (dishText.indexOf(' '+w) !== -1 || dishText.indexOf(w) === 0) ? 12 : 8;
+      continue;
+    }
+    var best = Infinity;
+    for(var t=0;t<tokens.length;t++){
+      var tok = tokens[t];
+      if(Math.abs(tok.length - w.length) > 3) continue;
+      var d = svLevenshtein(w, tok);
+      if(d < best) best = d;
+    }
+    var maxAllowed = w.length <= 3 ? 1 : (w.length <= 6 ? 2 : 3);
+    if(best <= maxAllowed){ total += Math.max(1, 6 - best*2); }
+    else { return 0; }
+  }
+  return total;
+}
+var svSearchTimer = null, svLastNoResultQuery = '';
+function filterMenu(raw){
+  var list = document.getElementById('menuList');
+  var noResults = document.getElementById('noResults');
+  if(!list) return;
+  var q = svNormalize(raw);
+  var items = Array.prototype.slice.call(list.querySelectorAll('.dish'));
+  var scored = items.map(function(el){
+    return { el: el, score: svMatchScore(el.getAttribute('data-search')||'', q) };
+  });
+  if(!q){
+    scored.sort(function(a,b){ return (+a.el.getAttribute('data-order')) - (+b.el.getAttribute('data-order')); });
+    scored.forEach(function(s){ s.el.style.display=''; list.appendChild(s.el); });
+    if(noResults) noResults.style.display='none';
+  } else {
+    var matched = scored.filter(function(s){ return s.score > 0; });
+    matched.sort(function(a,b){ return b.score - a.score; });
+    items.forEach(function(el){ el.style.display='none'; });
+    matched.forEach(function(s){ s.el.style.display=''; list.appendChild(s.el); });
+    if(noResults) noResults.style.display = matched.length===0 ? 'block' : 'none';
+
+    clearTimeout(svSearchTimer);
+    if(matched.length===0 && q!==svLastNoResultQuery){
+      svSearchTimer = setTimeout(function(){
+        svLastNoResultQuery = q;
+        if(window.__svSend) window.__svSend('menu_search_noresults',{query:raw.slice(0,60)});
+      }, 900);
+    }
+  }
+}
 
 // ── Analytics: menu opened + which dish was tapped ──────────────────────
 (function(){
@@ -239,6 +355,7 @@ function setLang(l){
       else{fetch(TRACK,{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});}
     }catch(e){}
   }
+  window.__svSend = send; // used by the search box below to report misses
   send('menu_open');
   document.querySelectorAll('a.dish').forEach(function(a){
     a.addEventListener('click',function(){
