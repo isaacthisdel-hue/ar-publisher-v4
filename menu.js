@@ -142,8 +142,10 @@ function buildMenuPage(manifest, basePath) {
       '<div class="empty-sub" data-i18n="emptySub">This menu is being prepared.</div>' +
     '</div>';
 
-  // Search is only worth showing once there's enough menu to search through.
-  const showSearch = dishes.length > 5;
+  // Always show search once there's at least one dish — a 2-item menu costs
+  // nothing to have it on, and hiding it below a threshold just confused
+  // testing ("I don't see a search bar" on a small test menu).
+  const showSearch = dishes.length > 0;
   const searchBar = showSearch
     ? '<div class="search-wrap">' +
         '<svg class="search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>' +
