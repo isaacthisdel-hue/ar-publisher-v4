@@ -1,62 +1,165 @@
 // ============================================================
 // RESTAURANT STORE — persists the restaurant list (names, branches,
-// socials, review link, signed status) to a Railway Volume so it
-// survives redeploys/restarts, instead of living only in memory.
+// socials, review link, signed status) so it survives redeploys/
+// restarts instead of living only in memory.
 //
-// SETUP (one time, in the Railway dashboard):
-//   Your service -> Settings -> Volumes -> Add Volume
-//   Mount path: /data   (or set DATA_DIR to whatever you mount it at)
+// Two backends, tried in this order:
+//   1. Supabase — the SAME project already used by analytics.js, reusing
+//      SUPABASE_URL / SUPABASE_SERVICE_KEY. No Railway action needed at
+//      all if that's already set up.
+//   2. Railway Volume — a JSON file on a mounted disk (Settings ->
+//      Volumes -> Add Volume, mount path /data, or set DATA_DIR).
+// Falls back to memory-only (same as before) if neither is configured,
+// so the app keeps working regardless — same graceful-degradation
+// pattern as analytics.js when Supabase isn't set up.
 //
-// Without a volume attached, this silently falls back to memory-only
-// behavior (same graceful-degradation pattern as analytics.js when
-// Supabase isn't configured) — the app still works, it just won't
-// remember restaurants across a redeploy until a volume is attached.
-//
-// NOTE: published dishes themselves are NOT stored here. They already
-// live forever in each restaurant's GitHub repo (dishes.json manifest),
-// which is the existing source of truth — see menu.js. This file only
-// covers the admin-side restaurant list that used to live in memory.
+// ONE-TIME SUPABASE SETUP (SQL editor, only needed for the Supabase
+// backend — skip this if you're using a Volume instead):
+//   create table if not exists restaurants (
+//     slug text primary key,
+//     name text not null,
+//     branches jsonb not null default '{}',
+//     socials jsonb not null default '{}',
+//     review_url text not null default '',
+//     signed boolean not null default false,
+//     updated_at timestamptz not null default now()
+//   );
 // ============================================================
 
 const fs = require('fs');
 const path = require('path');
 
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const TABLE = 'restaurants';
+
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const FILE = path.join(DATA_DIR, 'restaurants.json');
 
-function storageEnabled() {
-  try {
-    fs.accessSync(DATA_DIR, fs.constants.W_OK);
-    return true;
-  } catch {
-    return false;
-  }
+function supabaseEnabled() { return Boolean(SUPABASE_URL && SUPABASE_KEY); }
+function volumeEnabled() {
+  try { fs.accessSync(DATA_DIR, fs.constants.W_OK); return true; }
+  catch { return false; }
+}
+function storageEnabled() { return supabaseEnabled() || volumeEnabled(); }
+function storageBackend() {
+  if (supabaseEnabled()) return 'supabase';
+  if (volumeEnabled()) return 'volume';
+  return 'memory';
 }
 
-// Loads the persisted restaurant list at startup. Returns {} if no
-// volume is attached yet, or no file has been written yet.
-function loadRestaurants() {
-  try {
-    const raw = fs.readFileSync(FILE, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return {};
+// Low-level Supabase REST helper — same pattern as analytics.js's sb().
+async function sb(pathSuffix, options = {}) {
+  const url = SUPABASE_URL + '/rest/v1/' + pathSuffix;
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error('Supabase ' + res.status + ': ' + text);
   }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
-// Writes the full restaurant list. Called after every mutation (add/
-// delete restaurant or branch, update socials/review/signed). Writes to
-// a temp file and renames over the real one so a crash mid-write can't
-// leave a half-written, corrupt restaurants.json behind.
-function saveRestaurants(restaurants) {
-  if (!storageEnabled()) return;
+function rowToRestaurant(row) {
+  return {
+    name: row.name,
+    branches: row.branches || {},
+    socials: row.socials || {},
+    reviewUrl: row.review_url || '',
+    signed: !!row.signed,
+  };
+}
+
+function restaurantToRow(slug, r) {
+  return {
+    slug,
+    name: r.name,
+    branches: r.branches || {},
+    socials: r.socials || {},
+    review_url: r.reviewUrl || '',
+    signed: !!r.signed,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// ── Volume (file) backend ──────────────────────────────────────────────
+function loadFromVolume() {
+  try { return JSON.parse(fs.readFileSync(FILE, 'utf8')); }
+  catch { return {}; }
+}
+function saveAllToVolume(restaurants) {
   try {
     const tmp = FILE + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(restaurants, null, 2));
-    fs.renameSync(tmp, FILE);
+    fs.renameSync(tmp, FILE); // atomic swap, avoids a half-written file on crash
   } catch (e) {
     console.error('Failed to save restaurants.json:', e.message);
   }
 }
 
-module.exports = { storageEnabled, loadRestaurants, saveRestaurants, DATA_DIR };
+// ── Public API ──────────────────────────────────────────────────────────
+
+// Loads every restaurant at startup, from whichever backend is active.
+async function loadRestaurants() {
+  if (supabaseEnabled()) {
+    try {
+      const rows = await sb(TABLE + '?select=*');
+      const out = {};
+      (rows || []).forEach((row) => { out[row.slug] = rowToRestaurant(row); });
+      return out;
+    } catch (e) {
+      console.error('Failed to load restaurants from Supabase:', e.message);
+      return {};
+    }
+  }
+  if (volumeEnabled()) return loadFromVolume();
+  return {};
+}
+
+// Upserts one restaurant. Call after any add/update to it (including
+// branch/social/review/signed changes) — pass the full updated record,
+// plus the whole restaurants map (only used by the volume backend, which
+// has to rewrite the whole file since it has no per-row upsert).
+async function persistUpsert(slug, restaurant, allRestaurants) {
+  if (supabaseEnabled()) {
+    try {
+      await sb(TABLE + '?on_conflict=slug', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(restaurantToRow(slug, restaurant)),
+      });
+    } catch (e) {
+      console.error('Failed to save restaurant to Supabase:', e.message);
+    }
+    return;
+  }
+  if (volumeEnabled()) saveAllToVolume(allRestaurants);
+}
+
+// Deletes one restaurant.
+async function persistDelete(slug, allRestaurants) {
+  if (supabaseEnabled()) {
+    try {
+      await sb(TABLE + '?slug=eq.' + encodeURIComponent(slug), {
+        method: 'DELETE',
+        headers: { Prefer: 'return=minimal' },
+      });
+    } catch (e) {
+      console.error('Failed to delete restaurant from Supabase:', e.message);
+    }
+    return;
+  }
+  if (volumeEnabled()) saveAllToVolume(allRestaurants);
+}
+
+module.exports = {
+  storageEnabled, storageBackend, loadRestaurants, persistUpsert, persistDelete, DATA_DIR,
+};

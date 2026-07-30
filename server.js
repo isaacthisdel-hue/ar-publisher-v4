@@ -6,7 +6,7 @@ const { mergeNutritionPanel } = require('./mergeNutritionPanel');
 const { recordEvent, getStats, getMenuStats, analyticsEnabled } = require('./analytics');
 const { manifestPath, upsertDish, buildMenuPage, MANIFEST } = require('./menu');
 const { buildSocialRow, SOCIAL_CSS, cleanSocials, buildReviewBlock, REVIEW_CSS, REVIEW_I18N } = require('./social');
-const { storageEnabled, loadRestaurants, saveRestaurants, DATA_DIR } = require('./store');
+const { storageEnabled, storageBackend, loadRestaurants, persistUpsert, persistDelete, DATA_DIR } = require('./store');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -18,9 +18,10 @@ const { GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, COOKIE_SECRET = 'changeme' } = p
 // ── Restaurant store ────────────────────────────────────────────────────────
 // { 'bella-italia': { name: 'Bella Italia', branches: { 'downtown': 'Downtown', 'laval': 'Laval' } } }
 // Kept in memory for fast reads (same as before), but now loaded from — and
-// saved back to — a Railway Volume (see store.js) after every change, so it
-// survives redeploys instead of resetting every time the server restarts.
-let restaurants = loadRestaurants();
+// saved back to — Supabase or a Railway Volume (see store.js) after every
+// change, so it survives redeploys instead of resetting on every restart.
+// Populated just before app.listen() below, once the initial load resolves.
+let restaurants = {};
 
 function signToken(t) { return Buffer.from(COOKIE_SECRET + '|' + t).toString('base64'); }
 function unsignToken(s) {
@@ -80,7 +81,7 @@ app.post('/api/restaurants', (req, res) => {
     restaurants[slug].branches[bSlug] = branch.trim();
   }
 
-  saveRestaurants(restaurants);
+  persistUpsert(slug, restaurants[slug], restaurants);
   res.json({ success: true, slug, restaurant: restaurants[slug] });
 });
 
@@ -90,7 +91,7 @@ app.put('/api/restaurants/:slug/socials', (req, res) => {
   const { slug } = req.params;
   if (!restaurants[slug]) return res.status(404).json({ error: 'Restaurant not found' });
   restaurants[slug].socials = cleanSocials(req.body || {});
-  saveRestaurants(restaurants);
+  persistUpsert(slug, restaurants[slug], restaurants);
   res.json({ success: true, slug, socials: restaurants[slug].socials });
 });
 
@@ -101,7 +102,7 @@ app.put('/api/restaurants/:slug/review', (req, res) => {
   if (!restaurants[slug]) return res.status(404).json({ error: 'Restaurant not found' });
   const url = (req.body && req.body.reviewUrl || '').trim();
   restaurants[slug].reviewUrl = url;
-  saveRestaurants(restaurants);
+  persistUpsert(slug, restaurants[slug], restaurants);
   res.json({ success: true, slug, reviewUrl: url });
 });
 
@@ -111,7 +112,7 @@ app.put('/api/restaurants/:slug/signed', (req, res) => {
   const { slug } = req.params;
   if (!restaurants[slug]) return res.status(404).json({ error: 'Restaurant not found' });
   restaurants[slug].signed = !!(req.body && req.body.signed);
-  saveRestaurants(restaurants);
+  persistUpsert(slug, restaurants[slug], restaurants);
   res.json({ success: true, slug, signed: restaurants[slug].signed });
 });
 
@@ -125,15 +126,16 @@ app.post('/api/restaurants/:slug/branches', (req, res) => {
 
   const bSlug = slugify(branch);
   restaurants[slug].branches[bSlug] = branch.trim();
-  saveRestaurants(restaurants);
+  persistUpsert(slug, restaurants[slug], restaurants);
   res.json({ success: true, slug, restaurant: restaurants[slug] });
 });
 
 // Delete restaurant
 app.delete('/api/restaurants/:slug', (req, res) => {
   if (!getToken(req)) return res.status(401).json({ error: 'Not logged in' });
-  delete restaurants[req.params.slug];
-  saveRestaurants(restaurants);
+  const slug = req.params.slug;
+  delete restaurants[slug];
+  persistDelete(slug, restaurants);
   res.json({ success: true });
 });
 
@@ -141,8 +143,10 @@ app.delete('/api/restaurants/:slug', (req, res) => {
 app.delete('/api/restaurants/:slug/branches/:bSlug', (req, res) => {
   if (!getToken(req)) return res.status(401).json({ error: 'Not logged in' });
   const { slug, bSlug } = req.params;
-  if (restaurants[slug]) delete restaurants[slug].branches[bSlug];
-  saveRestaurants(restaurants);
+  if (restaurants[slug]) {
+    delete restaurants[slug].branches[bSlug];
+    persistUpsert(slug, restaurants[slug], restaurants);
+  }
   res.json({ success: true });
 });
 
@@ -739,14 +743,26 @@ h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
 }
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('Servision running on port ' + PORT);
-  console.log(
-    storageEnabled()
-      ? 'Restaurant data persisted to ' + DATA_DIR + ' (Railway Volume attached).'
-      : 'WARNING: no writable volume at ' + DATA_DIR + ' — restaurant data will NOT survive a redeploy. ' +
-        'Attach a Railway Volume (Settings -> Volumes) mounted at ' + DATA_DIR + ' to fix this.'
-  );
+loadRestaurants().then((loaded) => {
+  restaurants = loaded;
+}).catch((e) => {
+  console.error('Failed to load restaurants at startup:', e.message);
+}).finally(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log('Servision running on port ' + PORT);
+    const backend = storageBackend();
+    if (backend === 'supabase') {
+      console.log('Restaurant data persisted to Supabase — survives redeploys.');
+    } else if (backend === 'volume') {
+      console.log('Restaurant data persisted to ' + DATA_DIR + ' (Railway Volume attached).');
+    } else {
+      console.log(
+        'WARNING: no persistence backend configured — restaurant data will NOT survive a redeploy. ' +
+        'Either it will use the same SUPABASE_URL/SUPABASE_SERVICE_KEY as analytics automatically once ' +
+        'those are set, or attach a Railway Volume (Settings -> Volumes) mounted at ' + DATA_DIR + '.'
+      );
+    }
+  });
 });
 
 // ── PUBLISHER UI ──────────────────────────────────────────────────────────────
