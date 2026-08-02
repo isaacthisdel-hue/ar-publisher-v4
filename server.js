@@ -2834,20 +2834,19 @@ ${REVIEW_CSS}
       <div class="help-step"><div class="help-step-n">2</div><div id="txt-help-s2">Give it a second to load</div></div>
       <div class="help-step"><div class="help-step-n">3</div><div id="txt-help-s3">Aim at a spot on the table, phone tilted down</div></div>
     </div>
-    <svg class="help-diagram" viewBox="0 0 240 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <line x1="10" y1="115" x2="150" y2="115" style="stroke:var(--border);stroke-width:2"/>
-      <circle cx="60" cy="115" r="9" style="fill:none;stroke:var(--muted);stroke-width:1.5"/>
-      <circle cx="60" cy="115" r="3" style="fill:var(--muted)"/>
-      <line x1="185" y1="25" x2="30" y2="70" style="stroke:var(--muted);stroke-width:1.5;stroke-dasharray:3,4"/>
-      <text x="140" y="60" style="fill:var(--muted);font-size:16px;font-family:sans-serif">✕</text>
-      <circle cx="130" cy="105" r="9" style="fill:none;stroke:var(--amber);stroke-width:1.5"/>
-      <circle cx="130" cy="105" r="3" style="fill:var(--amber)"/>
-      <line x1="185" y1="25" x2="130" y2="105" style="stroke:var(--amber);stroke-width:2"/>
-      <text x="145" y="45" style="fill:var(--amber);font-size:16px;font-family:sans-serif">✓</text>
-      <g transform="translate(185,25) rotate(35)">
-        <rect x="-9" y="-16" width="18" height="30" rx="4" style="fill:var(--surface);stroke:var(--fg);stroke-width:1.5"/>
-        <circle cx="0" cy="10" r="2" style="fill:var(--fg)"/>
+    <svg class="help-diagram" viewBox="0 0 220 150" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="110" cy="138" r="8" style="fill:none;stroke:var(--border);stroke-width:1"/>
+      <circle cx="110" cy="138" r="4" style="fill:var(--fg)"/>
+      <line x1="110" y1="138" x2="21" y2="106" style="stroke:var(--muted);stroke-width:2;stroke-dasharray:4,4;stroke-linecap:round"/>
+      <g transform="translate(21,106) rotate(19.8)">
+        <rect x="-14" y="-7" width="28" height="14" rx="4" style="fill:var(--surface);stroke:var(--fg);stroke-width:1.5"/>
       </g>
+      <text x="21" y="88" text-anchor="middle" style="fill:var(--muted);font-size:12px;font-family:sans-serif" id="txt-help-flat">Too low</text>
+      <line x1="110" y1="138" x2="148" y2="45" style="stroke:var(--amber);stroke-width:2;stroke-dasharray:4,4;stroke-linecap:round"/>
+      <g transform="translate(148,45) rotate(112.25)">
+        <rect x="-14" y="-7" width="28" height="14" rx="4" style="fill:var(--surface);stroke:var(--fg);stroke-width:1.5"/>
+      </g>
+      <text x="148" y="30" text-anchor="middle" style="fill:var(--amber);font-size:12px;font-weight:600;font-family:sans-serif" id="txt-help-good">Just right</text>
     </svg>
     <div class="help-caption" id="txt-help-caption">Hold it up high, angled down toward the table</div>
     <button type="button" class="help-got-it" id="helpGotIt"><span id="txt-help-gotit">Got it</span></button>
@@ -2916,8 +2915,8 @@ document.getElementById('arBtn').addEventListener('click', function() {
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeHelp(); });
 })();
 var T = {
-  en:{sub:'Tap to bring this dish to life in your space',circle:'See it on<br>your table',view:'👆 Tap here',tap:'Tap the circle',s1:'Tap the circle',s2:'Point at your table',s3:'See it appear',c1:'Works on iPhone & Android',c2:'No app needed',note:'Drag to rotate, scroll to zoom.',qr:'Scan to open on your phone',helpBtn:'How do I place it?',helpTitle:'Placing it on your table',helpSub:'Three quick steps',helpS1:'Tap the circle',helpS2:'Give it a second to load',helpS3:'Aim at a spot on the table, phone tilted down',helpCaption:'Hold it up high, angled down toward the table',helpGotIt:'Got it'},
-  fr:{sub:'Appuyez pour voir ce plat prendre vie dans votre espace',circle:'Sur votre<br>table',view:'👆 Appuyez ici',tap:'Appuyez le cercle',s1:'Appuyez le cercle',s2:'Pointez vers la table',s3:'Le voir apparaître',c1:'Compatible iPhone & Android',c2:'Sans application',note:'Glissez pour faire pivoter, molette pour zoomer.',qr:'Scannez pour ouvrir sur votre téléphone',helpBtn:'Comment le placer ?',helpTitle:'Le placer sur votre table',helpSub:'Trois étapes rapides',helpS1:'Appuyez sur le cercle',helpS2:'Attendez une seconde le chargement',helpS3:'Visez un point sur la table, téléphone incliné vers le bas',helpCaption:'Tenez-le en hauteur, incliné vers la table',helpGotIt:'Compris'}
+  en:{sub:'Tap to bring this dish to life in your space',circle:'See it on<br>your table',view:'👆 Tap here',tap:'Tap the circle',s1:'Tap the circle',s2:'Point at your table',s3:'See it appear',c1:'Works on iPhone & Android',c2:'No app needed',note:'Drag to rotate, scroll to zoom.',qr:'Scan to open on your phone',helpBtn:'How do I place it?',helpTitle:'Placing it on your table',helpSub:'Three quick steps',helpS1:'Tap the circle',helpS2:'Give it a second to load',helpS3:'Aim at a spot on the table, phone tilted down',helpCaption:'Hold it up high, angled down toward the table',helpGotIt:'Got it',helpFlat:'Too low',helpGood:'Just right'},
+  fr:{sub:'Appuyez pour voir ce plat prendre vie dans votre espace',circle:'Sur votre<br>table',view:'👆 Appuyez ici',tap:'Appuyez le cercle',s1:'Appuyez le cercle',s2:'Pointez vers la table',s3:'Le voir apparaître',c1:'Compatible iPhone & Android',c2:'Sans application',note:'Glissez pour faire pivoter, molette pour zoomer.',qr:'Scannez pour ouvrir sur votre téléphone',helpBtn:'Comment le placer ?',helpTitle:'Le placer sur votre table',helpSub:'Trois étapes rapides',helpS1:'Appuyez sur le cercle',helpS2:'Attendez une seconde le chargement',helpS3:'Visez un point sur la table, téléphone incliné vers le bas',helpCaption:'Tenez-le en hauteur, incliné vers la table',helpGotIt:'Compris',helpFlat:'Trop bas',helpGood:'Parfait'}
 };
 function setLang(l) {
   var t=T[l];
@@ -2940,6 +2939,8 @@ function setLang(l) {
   document.getElementById('txt-help-s3').textContent=t.helpS3;
   document.getElementById('txt-help-caption').textContent=t.helpCaption;
   document.getElementById('txt-help-gotit').textContent=t.helpGotIt;
+  document.getElementById('txt-help-flat').textContent=t.helpFlat;
+  document.getElementById('txt-help-good').textContent=t.helpGood;
   // Review CTA (only present if a review link was set)
   var rev = { en:{revHead:'Enjoyed your meal?',revSub:'Share your experience in 30 seconds',revBtn:'Leave a Google review'}, fr:{revHead:'Vous avez aimé votre repas ?',revSub:'Partagez votre expérience en 30 secondes',revBtn:'Laisser un avis Google'} };
   var rt = rev[l] || rev.en;
