@@ -4,9 +4,12 @@ const axios = require('axios');
 const cookieParser = require('cookie-parser');
 const { mergeNutritionPanel } = require('./mergeNutritionPanel');
 const { recordEvent, getStats, getMenuStats, analyticsEnabled } = require('./analytics');
-const { manifestPath, upsertDish, buildMenuPage, MANIFEST } = require('./menu');
+const { manifestPath, upsertDish, buildMenuPage, buildManagePage, MANIFEST } = require('./menu');
 const { buildSocialRow, SOCIAL_CSS, cleanSocials, buildReviewBlock, REVIEW_CSS, REVIEW_I18N } = require('./social');
-const { storageEnabled, storageBackend, loadRestaurants, persistUpsert, persistDelete, DATA_DIR } = require('./store');
+const {
+  storageEnabled, storageBackend, loadRestaurants, persistUpsert, persistDelete, DATA_DIR,
+  generateManageToken, overridesEnabled, loadOverrides, saveOverride,
+} = require('./store');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -22,6 +25,18 @@ const { GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, COOKIE_SECRET = 'changeme' } = p
 // change, so it survives redeploys instead of resetting on every restart.
 // Populated just before app.listen() below, once the initial load resolves.
 let restaurants = {};
+
+// Restaurants created before manage links existed won't have a manageToken
+// yet — generate and persist one the first time it's needed instead of
+// requiring a migration.
+function ensureManageToken(slug) {
+  if (!restaurants[slug]) return null;
+  if (!restaurants[slug].manageToken) {
+    restaurants[slug].manageToken = generateManageToken();
+    persistUpsert(slug, restaurants[slug], restaurants);
+  }
+  return restaurants[slug].manageToken;
+}
 
 function signToken(t) { return Buffer.from(COOKIE_SECRET + '|' + t).toString('base64'); }
 function unsignToken(s) {
@@ -73,7 +88,10 @@ app.post('/api/restaurants', (req, res) => {
 
   const slug = slugify(name);
   if (!restaurants[slug]) {
-    restaurants[slug] = { name: name.trim(), branches: {}, socials: {}, reviewUrl: '', signed: false };
+    restaurants[slug] = {
+      name: name.trim(), branches: {}, socials: {}, reviewUrl: '', signed: false,
+      manageToken: generateManageToken(),
+    };
   }
 
   if (branch && branch.trim()) {
@@ -167,6 +185,79 @@ app.get('/api/restaurants/:slug/dishes', async (req, res) => {
     res.json({ success: true, dishes });
   } catch (e) {
     res.status(500).json({ error: 'Failed to load dishes: ' + (e.message || e) });
+  }
+});
+
+// Returns (generating on first use) the private link a restaurant owner
+// uses to manage their own menu — toggle dishes on/off, sort them into
+// collections — without needing a GitHub login or a password.
+app.get('/api/restaurants/:slug/manage-link', (req, res) => {
+  if (!getToken(req)) return res.status(401).json({ error: 'Not logged in' });
+  const { slug } = req.params;
+  if (!restaurants[slug]) return res.status(404).json({ error: 'Restaurant not found' });
+  const branchSlug = (req.query.branch || '').toString();
+  const token = ensureManageToken(slug);
+  const url = 'https://ar.servision.ca/' + slug + (branchSlug ? '/' + branchSlug : '') + '/manage/' + token;
+  res.json({ success: true, url });
+});
+
+// ── OWNER MENU MANAGEMENT (no GitHub login — private token in the URL) ────────
+// The owner's dashboard reads the dish list from GitHub (same manifest the
+// customer menu uses) and overlays availability/collection overrides that
+// live in Supabase (see store.js) — never committed back to GitHub, so a
+// toggle takes effect instantly with no Pages rebuild delay.
+function checkManageToken(slug, token) {
+  return !!(restaurants[slug] && restaurants[slug].manageToken && restaurants[slug].manageToken === token);
+}
+
+async function getDishesWithOverrides(restaurantSlug, branchSlug) {
+  const repoName = 'ar-' + restaurantSlug;
+  const [manifest, overrides] = await Promise.all([
+    fetchManifest(repoName, branchSlug),
+    loadOverrides(restaurantSlug, branchSlug),
+  ]);
+  const dishes = manifest && Array.isArray(manifest.dishes) ? manifest.dishes : [];
+  return dishes.map((d) => {
+    const o = overrides[d.slug] || {};
+    return {
+      slug: d.slug,
+      name: d.name,
+      label: d.label || '',
+      available: o.available !== undefined ? !!o.available : true,
+      collection: o.collection || '',
+    };
+  });
+}
+
+// Dish list + overrides for the manage dashboard's own JS to render.
+app.get('/api/manage/:slug/dishes', async (req, res) => {
+  const { slug } = req.params;
+  const branchSlug = (req.query.branch || '').toString();
+  const token = (req.query.token || '').toString();
+  if (!checkManageToken(slug, token)) return res.status(403).json({ error: 'Invalid or expired link' });
+  try {
+    const dishes = await getDishesWithOverrides(slug, branchSlug);
+    res.json({ success: true, restaurantName: restaurants[slug].name, dishes });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load dishes: ' + (e.message || e) });
+  }
+});
+
+// Owner toggles a dish on/off, or reassigns/renames its collection.
+app.put('/api/manage/:slug/dish/:dishSlug', async (req, res) => {
+  const { slug, dishSlug } = req.params;
+  const { branch, token, available, collection } = req.body || {};
+  if (!checkManageToken(slug, token)) return res.status(403).json({ error: 'Invalid or expired link' });
+  try {
+    const current = (await loadOverrides(slug, branch || ''))[dishSlug] || { available: true, collection: '' };
+    const next = {
+      available: available !== undefined ? !!available : current.available,
+      collection: collection !== undefined ? String(collection).trim() : current.collection,
+    };
+    await saveOverride(slug, branch || '', dishSlug, next);
+    res.json({ success: true, dishSlug, ...next });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to save: ' + (e.message || e) });
   }
 });
 
@@ -503,10 +594,43 @@ async function serveMenu(repoName, restaurantSlug, branchSlug, req, res) {
     return proxyFromGitHub('/' + repoName + '/' + rest, req, res, 0);
   }
 
+  // Merge in owner-set availability/collection overrides (Supabase — see
+  // store.js) and drop anything toggled off. menu.js's renderer only ever
+  // sees the final list, it doesn't need to know overrides exist.
+  const overrides = await loadOverrides(restaurantSlug, branchSlug);
+  const dishes = manifest.dishes
+    .map((d) => {
+      const o = overrides[d.slug];
+      return { ...d, collection: (o && o.collection) || '', available: o ? !!o.available : true };
+    })
+    .filter((d) => d.available);
+
   const basePath = '/' + restaurantSlug + (branchSlug ? '/' + branchSlug : '') + '/';
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
-  res.send(buildMenuPage(manifest, basePath));
+  res.send(buildMenuPage({ ...manifest, dishes }, basePath));
+}
+
+// Serves the owner's private "manage my menu" dashboard.
+async function serveManage(restaurantSlug, branchSlug, token, res) {
+  if (!checkManageToken(restaurantSlug, token)) {
+    res.status(403).set('Content-Type', 'text/html; charset=utf-8');
+    return res.send(
+      '<!doctype html><html><body style="font-family:system-ui;background:#111009;' +
+      'color:#F2EDE4;padding:60px 20px;text-align:center">' +
+      '<h1 style="font-size:20px">This link isn\'t valid</h1>' +
+      '<p style="color:rgba(242,237,228,.6);max-width:360px;margin:10px auto 0">' +
+      'It may have expired or been mistyped. Ask Servision for a fresh management link.</p>' +
+      '</body></html>'
+    );
+  }
+  const repoName = 'ar-' + restaurantSlug;
+  const manifest = await fetchManifest(repoName, branchSlug);
+  const restaurantName = (restaurants[restaurantSlug] && restaurants[restaurantSlug].name) || restaurantSlug;
+  const theme = (manifest && manifest.theme) || 'dark-elegant';
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  res.send(buildManagePage({ restaurantName, theme, restaurantSlug, branchSlug, token }));
 }
 
 app.use((req, res, next) => {
@@ -530,6 +654,13 @@ app.use((req, res, next) => {
   if (parts[parts.length - 1].toLowerCase() === 'dashboard') {
     const dishKey = parts.slice(0, -1).join('/'); // everything except "dashboard"
     return serveDashboard(dishKey, res);
+  }
+
+  // ── OWNER MENU MANAGEMENT: ar.servision.ca/<rest>/[<branch>/]manage/<token> ──
+  if (parts.length >= 3 && parts[parts.length - 2].toLowerCase() === 'manage') {
+    const manageToken = parts[parts.length - 1];
+    const branchForManage = parts.length >= 4 ? parts.slice(1, -2).join('/') : '';
+    return serveManage(restaurantSlug, branchForManage, manageToken, res);
   }
 
   // Check if this is a file request (has extension) or a page request
@@ -1883,6 +2014,14 @@ function renderRestaurants(data) {
         dishBtn.setAttribute('data-bslug', bSlug);
         dishBtn.setAttribute('data-bname', r.branches[bSlug]);
         tag.appendChild(dishBtn);
+        var mgBtn = document.createElement('button');
+        mgBtn.textContent = '🔗';
+        mgBtn.title = 'Owner manage link — let them turn dishes on/off & sort into sections';
+        mgBtn.setAttribute('data-action', 'manage-link');
+        mgBtn.setAttribute('data-slug', slug);
+        mgBtn.setAttribute('data-bslug', bSlug);
+        mgBtn.setAttribute('data-bname', r.branches[bSlug]);
+        tag.appendChild(mgBtn);
         var xBtn = document.createElement('button');
         xBtn.textContent = '×';
         xBtn.title = 'Remove branch';
@@ -1916,6 +2055,16 @@ function renderRestaurants(data) {
       rootDishBtn.setAttribute('data-bslug', '');
       rootDishBtn.setAttribute('data-bname', r.name);
       branchesDiv.appendChild(rootDishBtn);
+      var rootMgBtn = document.createElement('button');
+      rootMgBtn.className = 'btn-add-branch';
+      rootMgBtn.style.marginLeft = '6px';
+      rootMgBtn.textContent = '🔗 Manage';
+      rootMgBtn.title = 'Owner manage link — let them turn dishes on/off & sort into sections';
+      rootMgBtn.setAttribute('data-action', 'manage-link');
+      rootMgBtn.setAttribute('data-slug', slug);
+      rootMgBtn.setAttribute('data-bslug', '');
+      rootMgBtn.setAttribute('data-bname', r.name);
+      branchesDiv.appendChild(rootMgBtn);
     }
 
     var addBranchBtn = document.createElement('button');
@@ -2057,6 +2206,8 @@ document.addEventListener('click', function(e) {
   if (action === 'copy') copyText(btn.getAttribute('data-copy'), btn);
   if (action === 'menu-qr') showMenuQR(slug, bSlug, btn.getAttribute('data-bname'));
   if (action === 'view-dishes') showDishList(slug, bSlug, btn.getAttribute('data-bname'));
+  if (action === 'manage-link') showManageLink(slug, bSlug, btn.getAttribute('data-bname'));
+  if (action === 'close-manage-link') { var mlm = document.getElementById('manage-link-modal'); if (mlm) mlm.remove(); }
   if (action === 'close-dish-list') { var dm = document.getElementById('dish-list-modal'); if (dm) dm.remove(); }
   if (action === 'toggle-socials') {
     var sf = document.getElementById('social-form-' + slug);
@@ -2164,6 +2315,45 @@ function showMenuQR(slug, bSlug, bName) {
     '</div>';
   modal.addEventListener('click', function(ev) { if (ev.target === modal) modal.remove(); });
   document.body.appendChild(modal);
+}
+
+// Owner's private manage link — a token URL with no GitHub login required.
+// Fetches (and lazily creates) the token from the server, then shows it as
+// a copyable link the owner can bookmark to turn dishes on/off themselves.
+function showManageLink(slug, bSlug, bName) {
+  var existing = document.getElementById('manage-link-modal');
+  if (existing) existing.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'manage-link-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px';
+  modal.innerHTML =
+    '<div style="background:var(--surface);border:1px solid rgba(200,135,58,.4);border-radius:16px;padding:26px;max-width:420px;width:100%;text-align:center">' +
+      '<div style="font-family:Cormorant Garamond,serif;font-size:22px;margin-bottom:2px">' + (bName || 'Menu') + '</div>' +
+      '<div style="font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin-bottom:16px">Owner Manage Link</div>' +
+      '<div id="manage-link-body" style="font-size:12.5px;color:var(--muted);line-height:1.6">Loading…</div>' +
+    '</div>';
+  modal.addEventListener('click', function(ev) { if (ev.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+
+  fetch('/api/restaurants/' + slug + '/manage-link' + (bSlug ? '?branch=' + encodeURIComponent(bSlug) : ''))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var body = document.getElementById('manage-link-body');
+      if (!body) return;
+      if (data.error) { body.textContent = data.error; return; }
+      body.innerHTML =
+        'Send this link to the restaurant. No login needed — they can turn dishes on/off and sort them into sections (breakfast, supper...) themselves.' +
+        '<a href="' + data.url + '" target="_blank" style="font-size:11.5px;word-break:break-all;display:block;margin:12px 0">' + data.url + '</a>' +
+        '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">' +
+          '<button class="copy-btn" data-action="copy" data-copy="' + data.url + '">Copy link</button>' +
+          '<button class="copy-btn" data-action="close-manage-link">Close</button>' +
+        '</div>';
+    })
+    .catch(function() {
+      var body = document.getElementById('manage-link-body');
+      if (body) body.textContent = 'Failed to load link — try again.';
+    });
 }
 
 // Shows every dish ever published to this restaurant/branch, pulled live

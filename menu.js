@@ -118,22 +118,44 @@ function buildMenuPage(manifest, basePath) {
     ? '<img class="logo" src="' + esc(basePath + logo) + '" alt="' + esc(brand) + '">'
     : '<div class="brand-name">' + esc(brand) + '</div>';
 
-  const cards = dishes.map(function (d, i) {
-    const href = esc(basePath + d.slug + '/');
-    const label = d.label ? '<div class="dish-label">' + esc(d.label) + '</div>' : '';
-    const searchText = esc(normalizeForSearch((d.name || '') + ' ' + (d.label || '')));
-    return (
-      '<a class="dish" href="' + href + '" data-search="' + searchText + '" data-order="' + i + '" style="animation-delay:' + (i * 55) + 'ms">' +
-        '<div class="dish-main">' +
-          label +
-          '<div class="dish-name">' + esc(d.name) + '</div>' +
-        '</div>' +
-        '<div class="dish-go" aria-hidden="true">' +
-          '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-            '<path d="M5 12h13M13 6l6 6-6 6"/></svg>' +
-        '</div>' +
-      '</a>'
-    );
+  // Group dishes by collection ("Breakfast", "Supper", ...), which the
+  // restaurant owner sets from their private /manage dashboard. Dishes with
+  // no collection assigned render first with no header, so a menu nobody
+  // has organized yet still looks exactly like the old flat list.
+  const groupOrder = [];
+  const groupedDishes = {};
+  dishes.forEach(function (d) {
+    const key = d.collection || '';
+    if (!(key in groupedDishes)) { groupedDishes[key] = []; groupOrder.push(key); }
+    groupedDishes[key].push(d);
+  });
+  if (groupOrder.indexOf('') !== -1) {
+    groupOrder.splice(groupOrder.indexOf(''), 1);
+    groupOrder.unshift('');
+  }
+
+  let cardIndex = 0;
+  const cards = groupOrder.map(function (collectionName) {
+    const dishCards = groupedDishes[collectionName].map(function (d) {
+      const i = cardIndex++;
+      const href = esc(basePath + d.slug + '/');
+      const label = d.label ? '<div class="dish-label">' + esc(d.label) + '</div>' : '';
+      const searchText = esc(normalizeForSearch((d.name || '') + ' ' + (d.label || '')));
+      return (
+        '<a class="dish" href="' + href + '" data-search="' + searchText + '" style="animation-delay:' + (i * 55) + 'ms">' +
+          '<div class="dish-main">' +
+            label +
+            '<div class="dish-name">' + esc(d.name) + '</div>' +
+          '</div>' +
+          '<div class="dish-go" aria-hidden="true">' +
+            '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="M5 12h13M13 6l6 6-6 6"/></svg>' +
+          '</div>' +
+        '</a>'
+      );
+    }).join('');
+    const head = collectionName ? '<div class="collection-head">' + esc(collectionName) + '</div>' : '';
+    return '<div class="collection-group">' + head + dishCards + '</div>';
   }).join('');
 
   const emptyState =
@@ -189,7 +211,9 @@ header{text-align:center;margin-bottom:26px}
 .lang{position:absolute;top:max(env(safe-area-inset-top),16px);right:16px;display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden}
 .lang button{background:none;border:none;color:var(--muted);font-family:inherit;font-size:10px;font-weight:700;letter-spacing:.06em;padding:6px 11px;cursor:pointer;transition:.15s}
 .lang button.on{background:color-mix(in srgb, var(--accent) 16%, transparent);color:var(--accent)}
-.list{display:flex;flex-direction:column;gap:10px}
+.list{display:flex;flex-direction:column;gap:22px}
+.collection-group{display:flex;flex-direction:column;gap:10px}
+.collection-head{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);padding:0 2px}
 .dish{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:14px;
   padding:17px 18px;text-decoration:none;color:inherit;
   transition:transform .16s ease, border-color .16s ease, background .16s ease;
@@ -319,28 +343,27 @@ function filterMenu(raw){
   var noResults = document.getElementById('noResults');
   if(!list) return;
   var q = svNormalize(raw);
-  var items = Array.prototype.slice.call(list.querySelectorAll('.dish'));
-  var scored = items.map(function(el){
-    return { el: el, score: svMatchScore(el.getAttribute('data-search')||'', q) };
+  var groups = Array.prototype.slice.call(list.querySelectorAll('.collection-group'));
+  var totalVisible = 0;
+  groups.forEach(function(group){
+    var items = Array.prototype.slice.call(group.querySelectorAll('.dish'));
+    var groupVisible = 0;
+    items.forEach(function(el){
+      var show = !q || svMatchScore(el.getAttribute('data-search')||'', q) > 0;
+      el.style.display = show ? '' : 'none';
+      if(show) groupVisible++;
+    });
+    group.style.display = groupVisible === 0 ? 'none' : '';
+    totalVisible += groupVisible;
   });
-  if(!q){
-    scored.sort(function(a,b){ return (+a.el.getAttribute('data-order')) - (+b.el.getAttribute('data-order')); });
-    scored.forEach(function(s){ s.el.style.display=''; list.appendChild(s.el); });
-    if(noResults) noResults.style.display='none';
-  } else {
-    var matched = scored.filter(function(s){ return s.score > 0; });
-    matched.sort(function(a,b){ return b.score - a.score; });
-    items.forEach(function(el){ el.style.display='none'; });
-    matched.forEach(function(s){ s.el.style.display=''; list.appendChild(s.el); });
-    if(noResults) noResults.style.display = matched.length===0 ? 'block' : 'none';
+  if(noResults) noResults.style.display = (q && totalVisible===0) ? 'block' : 'none';
 
-    clearTimeout(svSearchTimer);
-    if(matched.length===0 && q!==svLastNoResultQuery){
-      svSearchTimer = setTimeout(function(){
-        svLastNoResultQuery = q;
-        if(window.__svSend) window.__svSend('menu_search_noresults',{query:raw.slice(0,60)});
-      }, 900);
-    }
+  clearTimeout(svSearchTimer);
+  if(q && totalVisible===0 && q!==svLastNoResultQuery){
+    svSearchTimer = setTimeout(function(){
+      svLastNoResultQuery = q;
+      if(window.__svSend) window.__svSend('menu_search_noresults',{query:raw.slice(0,60)});
+    }, 900);
   }
 }
 
@@ -376,4 +399,177 @@ function filterMenu(raw){
 </html>`;
 }
 
-module.exports = { manifestPath, upsertDish, buildMenuPage, MANIFEST };
+// Renders the owner's private "manage my menu" dashboard — no GitHub
+// login, reached via a capability URL (.../manage/<token>). Lets the
+// restaurant toggle dishes on/off (86'd items disappear from the customer
+// menu instantly) and sort dishes into collections, without calling
+// Servision. All data loading/saving happens client-side against
+// /api/manage/:slug/... — this function only renders the shell.
+function buildManagePage(opts) {
+  const t = MENU_THEMES[opts.theme] || MENU_THEMES['dark-elegant'];
+  const restaurantName = opts.restaurantName || 'Your menu';
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>${esc(restaurantName)} — Manage Menu</title>
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=${t.fonts}&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{${t.vars}}
+html,body{min-height:100%;background:var(--bg);color:var(--fg);font-family:${t.body};-webkit-font-smoothing:antialiased}
+body{padding:max(env(safe-area-inset-top),22px) 18px max(env(safe-area-inset-bottom),40px)}
+.wrap{max-width:560px;margin:0 auto}
+header{margin-bottom:22px}
+.brand-name{font-family:${t.display};font-size:26px;font-weight:600;line-height:1.15}
+.kicker{font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-top:4px}
+.lead{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
+.status-msg{font-size:12.5px;color:var(--accent);min-height:16px;margin-top:10px}
+.group{margin-bottom:22px}
+.group-head{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;padding:0 2px}
+.row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.row-name{flex:1;min-width:0;font-size:15px;overflow-wrap:anywhere}
+.row-name.off{color:var(--muted);text-decoration:line-through}
+.collection-input{width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 9px;
+  font-family:inherit;font-size:12px;color:var(--fg);outline:none}
+.collection-input:focus{border-color:color-mix(in srgb, var(--accent) 55%, transparent)}
+.toggle{position:relative;width:42px;height:24px;border-radius:12px;background:var(--border);border:none;cursor:pointer;flex-shrink:0;transition:background .15s ease}
+.toggle.on{background:var(--accent)}
+.toggle-knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--surface);transition:transform .15s ease}
+.toggle.on .toggle-knob{transform:translateX(18px)}
+.empty{text-align:center;padding:52px 20px;border:1px dashed var(--border);border-radius:14px;color:var(--muted);font-size:13px}
+.error{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px}
+footer{text-align:center;margin-top:30px;font-size:10.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand-name">${esc(restaurantName)}</div>
+    <div class="kicker">Manage your menu</div>
+    <p class="lead">Turn a dish off if you're out for the day — it disappears from your table QR menu instantly. Group dishes into sections like "Breakfast" or "Supper" by typing a section name next to each dish.</p>
+    <div class="status-msg" id="statusMsg"></div>
+  </header>
+  <div id="menuBody">Loading your menu…</div>
+  <footer>Servision — changes here take effect immediately, no need to call us.</footer>
+</div>
+<datalist id="collectionOptions"></datalist>
+<script>
+var STATE = {
+  slug: ${JSON.stringify(opts.restaurantSlug)},
+  branch: ${JSON.stringify(opts.branchSlug || '')},
+  token: ${JSON.stringify(opts.token)}
+};
+
+function apiUrl(path) {
+  var sep = path.indexOf('?') === -1 ? '?' : '&';
+  return path + sep + 'branch=' + encodeURIComponent(STATE.branch) + '&token=' + encodeURIComponent(STATE.token);
+}
+
+function showStatus(msg) {
+  var el = document.getElementById('statusMsg');
+  if (!el) return;
+  el.textContent = msg;
+  if (msg) setTimeout(function() { if (el.textContent === msg) el.textContent = ''; }, 2200);
+}
+
+function loadMenu() {
+  fetch(apiUrl('/api/manage/' + STATE.slug + '/dishes'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var body = document.getElementById('menuBody');
+      if (data.error) { body.innerHTML = '<div class="error">' + data.error + '</div>'; return; }
+      renderMenu(data.dishes || []);
+    })
+    .catch(function() {
+      document.getElementById('menuBody').innerHTML = '<div class="error">Could not load your menu. Check your connection and reload.</div>';
+    });
+}
+
+function renderMenu(dishes) {
+  var body = document.getElementById('menuBody');
+  if (dishes.length === 0) { body.innerHTML = '<div class="empty">No dishes published yet.</div>'; return; }
+
+  var order = [], groups = {};
+  dishes.forEach(function(d) {
+    var key = d.collection || '';
+    if (!(key in groups)) { groups[key] = []; order.push(key); }
+    groups[key].push(d);
+  });
+  if (order.indexOf('') !== -1) { order.splice(order.indexOf(''), 1); order.unshift(''); }
+
+  var collectionNames = order.filter(function(k) { return k; });
+  document.getElementById('collectionOptions').innerHTML =
+    collectionNames.map(function(c) { return '<option value="' + c.replace(/"/g,'&quot;') + '">'; }).join('');
+
+  body.innerHTML = order.map(function(key) {
+    var head = key ? '<div class="group-head">' + key.replace(/</g,'&lt;') + '</div>' : '';
+    var rows = groups[key].map(function(d) { return dishRowHtml(d); }).join('');
+    return '<div class="group">' + head + rows + '</div>';
+  }).join('');
+
+  order.forEach(function(key) {
+    groups[key].forEach(function(d) { wireDishRow(d); });
+  });
+}
+
+function dishRowHtml(d) {
+  var nameClass = d.available ? 'row-name' : 'row-name off';
+  return (
+    '<div class="row" data-slug="' + d.slug + '">' +
+      '<span class="' + nameClass + '" id="name-' + d.slug + '">' + d.name.replace(/</g,'&lt;') + '</span>' +
+      '<input class="collection-input" list="collectionOptions" placeholder="Section" value="' + (d.collection||'').replace(/"/g,'&quot;') + '" id="coll-' + d.slug + '">' +
+      '<button type="button" class="toggle' + (d.available ? ' on' : '') + '" id="toggle-' + d.slug + '" aria-label="Toggle availability"><span class="toggle-knob"></span></button>' +
+    '</div>'
+  );
+}
+
+function wireDishRow(d) {
+  var toggle = document.getElementById('toggle-' + d.slug);
+  var collInput = document.getElementById('coll-' + d.slug);
+  var nameEl = document.getElementById('name-' + d.slug);
+  if (toggle) {
+    toggle.addEventListener('click', function() {
+      var nowOn = !toggle.classList.contains('on');
+      toggle.classList.toggle('on', nowOn);
+      if (nameEl) nameEl.className = nowOn ? 'row-name' : 'row-name off';
+      saveDish(d.slug, { available: nowOn });
+    });
+  }
+  if (collInput) {
+    var lastSaved = collInput.value;
+    collInput.addEventListener('change', function() {
+      var val = collInput.value.trim();
+      if (val === lastSaved) return;
+      lastSaved = val;
+      saveDish(d.slug, { collection: val }, true);
+    });
+  }
+}
+
+function saveDish(slug, patch, reloadAfter) {
+  var body = Object.assign({ branch: STATE.branch, token: STATE.token }, patch);
+  fetch('/api/manage/' + STATE.slug + '/dish/' + slug, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) { showStatus('Failed to save — try again.'); return; }
+      showStatus('Saved.');
+      if (reloadAfter) loadMenu();
+    })
+    .catch(function() { showStatus('Failed to save — try again.'); });
+}
+
+loadMenu();
+</script>
+</body>
+</html>`;
+}
+
+module.exports = { manifestPath, upsertDish, buildMenuPage, buildManagePage, MANIFEST };
