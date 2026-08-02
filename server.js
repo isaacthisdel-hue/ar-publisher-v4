@@ -2736,6 +2736,21 @@ model-viewer{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;t
 @keyframes glow{0%,100%{box-shadow:0 4px 40px rgba(var(--accent-rgb),.08)}50%{box-shadow:0 4px 70px rgba(var(--accent-rgb),.18)}}
 @keyframes sweep{0%{left:-50%;opacity:0}20%{opacity:1}60%{left:130%;opacity:0}100%{left:130%;opacity:0}}
 @keyframes pulse-arrow{0%,100%{opacity:.6;transform:translateX(0)}50%{opacity:1;transform:translateX(4px)}}
+.help-btn{margin-top:22px;background:none;border:1px solid var(--border);color:var(--muted);font-family:inherit;font-size:11.5px;font-weight:600;letter-spacing:.03em;padding:8px 16px;border-radius:20px;cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.help-btn:hover{border-color:var(--amber);color:var(--amber)}
+.help-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+.help-overlay.open{display:flex}
+.help-panel{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px 24px;max-width:340px;width:100%;text-align:center}
+.help-close{position:absolute;top:12px;right:12px;width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--muted);font-size:15px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.help-close:hover{color:var(--amber);border-color:var(--amber)}
+.help-title{font-family:${t.display};font-size:19px;font-weight:600;color:var(--fg)}
+.help-sub{font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:18px}
+.help-steps{display:flex;flex-direction:column;gap:9px;text-align:left;margin-bottom:16px}
+.help-step{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--fg)}
+.help-step-n{flex-shrink:0;width:20px;height:20px;border-radius:50%;border:1px solid var(--amber);color:var(--amber);font-size:10.5px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.help-diagram{width:100%;height:auto;margin-top:2px}
+.help-caption{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+.help-got-it{margin-top:18px;width:100%;background:var(--amber);color:var(--bg);font-family:inherit;font-size:13px;font-weight:700;padding:11px;border-radius:8px;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 ${SOCIAL_CSS}
 ${REVIEW_CSS}
 @media(min-width:900px){
@@ -2800,12 +2815,42 @@ ${REVIEW_CSS}
           <div class="step-line"></div>
           <div class="step"><div class="step-n">3</div><div class="step-l" id="txt-s3">See it appear</div></div>
         </div>
+        <button type="button" class="help-btn" id="helpBtn"><span id="txt-help-btn">How do I place it?</span></button>
       </div>
       <p class="desktop-note" id="txt-desktop-note">Drag to rotate, scroll to zoom.</p>
       <div class="compat"><span id="txt-c1">Works on iPhone & Android</span><span class="dot"></span><span id="txt-c2">No app needed</span></div>
       ${buildReviewBlock(reviewUrl, 'en')}
       ${buildSocialRow(socials)}
     </div>
+  </div>
+</div>
+<div class="help-overlay" id="helpOverlay">
+  <div class="help-panel">
+    <button type="button" class="help-close" id="helpClose" aria-label="Close">×</button>
+    <div class="help-title" id="txt-help-title">Placing it on your table</div>
+    <div class="help-sub" id="txt-help-sub">Three quick steps</div>
+    <div class="help-steps">
+      <div class="help-step"><div class="help-step-n">1</div><div id="txt-help-s1">Tap the circle</div></div>
+      <div class="help-step"><div class="help-step-n">2</div><div id="txt-help-s2">Give it a second to load</div></div>
+      <div class="help-step"><div class="help-step-n">3</div><div id="txt-help-s3">Aim at a spot on the table, phone tilted down</div></div>
+    </div>
+    <svg class="help-diagram" viewBox="0 0 240 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <line x1="10" y1="115" x2="150" y2="115" style="stroke:var(--border);stroke-width:2"/>
+      <circle cx="60" cy="115" r="9" style="fill:none;stroke:var(--muted);stroke-width:1.5"/>
+      <circle cx="60" cy="115" r="3" style="fill:var(--muted)"/>
+      <line x1="185" y1="25" x2="30" y2="70" style="stroke:var(--muted);stroke-width:1.5;stroke-dasharray:3,4"/>
+      <text x="140" y="60" style="fill:var(--muted);font-size:16px;font-family:sans-serif">✕</text>
+      <circle cx="130" cy="105" r="9" style="fill:none;stroke:var(--amber);stroke-width:1.5"/>
+      <circle cx="130" cy="105" r="3" style="fill:var(--amber)"/>
+      <line x1="185" y1="25" x2="130" y2="105" style="stroke:var(--amber);stroke-width:2"/>
+      <text x="145" y="45" style="fill:var(--amber);font-size:16px;font-family:sans-serif">✓</text>
+      <g transform="translate(185,25) rotate(35)">
+        <rect x="-9" y="-16" width="18" height="30" rx="4" style="fill:var(--surface);stroke:var(--fg);stroke-width:1.5"/>
+        <circle cx="0" cy="10" r="2" style="fill:var(--fg)"/>
+      </g>
+    </svg>
+    <div class="help-caption" id="txt-help-caption">Hold it up high, angled down toward the table</div>
+    <button type="button" class="help-got-it" id="helpGotIt"><span id="txt-help-gotit">Got it</span></button>
   </div>
 </div>
 <script>
@@ -2857,9 +2902,22 @@ document.getElementById('arBtn').addEventListener('click', function() {
     mv.activateAR();
   }
 });
+(function(){
+  var overlay = document.getElementById('helpOverlay');
+  var btn = document.getElementById('helpBtn');
+  var closeBtn = document.getElementById('helpClose');
+  var gotIt = document.getElementById('helpGotIt');
+  function openHelp(){ if (overlay) overlay.classList.add('open'); }
+  function closeHelp(){ if (overlay) overlay.classList.remove('open'); }
+  if (btn) btn.addEventListener('click', openHelp);
+  if (closeBtn) closeBtn.addEventListener('click', closeHelp);
+  if (gotIt) gotIt.addEventListener('click', closeHelp);
+  if (overlay) overlay.addEventListener('click', function(e){ if (e.target === overlay) closeHelp(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeHelp(); });
+})();
 var T = {
-  en:{sub:'Tap to bring this dish to life in your space',circle:'See it on<br>your table',view:'👆 Tap here',tap:'Tap the circle',s1:'Tap the circle',s2:'Point at your table',s3:'See it appear',c1:'Works on iPhone & Android',c2:'No app needed',note:'Drag to rotate, scroll to zoom.',qr:'Scan to open on your phone'},
-  fr:{sub:'Appuyez pour voir ce plat prendre vie dans votre espace',circle:'Sur votre<br>table',view:'👆 Appuyez ici',tap:'Appuyez le cercle',s1:'Appuyez le cercle',s2:'Pointez vers la table',s3:'Le voir apparaître',c1:'Compatible iPhone & Android',c2:'Sans application',note:'Glissez pour faire pivoter, molette pour zoomer.',qr:'Scannez pour ouvrir sur votre téléphone'}
+  en:{sub:'Tap to bring this dish to life in your space',circle:'See it on<br>your table',view:'👆 Tap here',tap:'Tap the circle',s1:'Tap the circle',s2:'Point at your table',s3:'See it appear',c1:'Works on iPhone & Android',c2:'No app needed',note:'Drag to rotate, scroll to zoom.',qr:'Scan to open on your phone',helpBtn:'How do I place it?',helpTitle:'Placing it on your table',helpSub:'Three quick steps',helpS1:'Tap the circle',helpS2:'Give it a second to load',helpS3:'Aim at a spot on the table, phone tilted down',helpCaption:'Hold it up high, angled down toward the table',helpGotIt:'Got it'},
+  fr:{sub:'Appuyez pour voir ce plat prendre vie dans votre espace',circle:'Sur votre<br>table',view:'👆 Appuyez ici',tap:'Appuyez le cercle',s1:'Appuyez le cercle',s2:'Pointez vers la table',s3:'Le voir apparaître',c1:'Compatible iPhone & Android',c2:'Sans application',note:'Glissez pour faire pivoter, molette pour zoomer.',qr:'Scannez pour ouvrir sur votre téléphone',helpBtn:'Comment le placer ?',helpTitle:'Le placer sur votre table',helpSub:'Trois étapes rapides',helpS1:'Appuyez sur le cercle',helpS2:'Attendez une seconde le chargement',helpS3:'Visez un point sur la table, téléphone incliné vers le bas',helpCaption:'Tenez-le en hauteur, incliné vers la table',helpGotIt:'Compris'}
 };
 function setLang(l) {
   var t=T[l];
@@ -2874,6 +2932,14 @@ function setLang(l) {
   document.getElementById('txt-c2').textContent=t.c2;
   document.getElementById('txt-desktop-note').textContent=t.note;
   var qrLabel = document.getElementById('txt-qr-label'); if (qrLabel) qrLabel.textContent=t.qr;
+  document.getElementById('txt-help-btn').textContent=t.helpBtn;
+  document.getElementById('txt-help-title').textContent=t.helpTitle;
+  document.getElementById('txt-help-sub').textContent=t.helpSub;
+  document.getElementById('txt-help-s1').textContent=t.helpS1;
+  document.getElementById('txt-help-s2').textContent=t.helpS2;
+  document.getElementById('txt-help-s3').textContent=t.helpS3;
+  document.getElementById('txt-help-caption').textContent=t.helpCaption;
+  document.getElementById('txt-help-gotit').textContent=t.helpGotIt;
   // Review CTA (only present if a review link was set)
   var rev = { en:{revHead:'Enjoyed your meal?',revSub:'Share your experience in 30 seconds',revBtn:'Leave a Google review'}, fr:{revHead:'Vous avez aimé votre repas ?',revSub:'Partagez votre expérience en 30 secondes',revBtn:'Laisser un avis Google'} };
   var rt = rev[l] || rev.en;
