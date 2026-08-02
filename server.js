@@ -616,10 +616,10 @@ async function serveManage(restaurantSlug, branchSlug, token, res) {
   if (!checkManageToken(restaurantSlug, token)) {
     res.status(403).set('Content-Type', 'text/html; charset=utf-8');
     return res.send(
-      '<!doctype html><html><body style="font-family:system-ui;background:#111009;' +
-      'color:#F2EDE4;padding:60px 20px;text-align:center">' +
+      '<!doctype html><html><body style="font-family:system-ui;background:#14120F;' +
+      'color:#F3ECDD;padding:60px 20px;text-align:center">' +
       '<h1 style="font-size:20px">This link isn\'t valid</h1>' +
-      '<p style="color:rgba(242,237,228,.6);max-width:360px;margin:10px auto 0">' +
+      '<p style="color:rgba(243,236,221,.6);max-width:360px;margin:10px auto 0">' +
       'It may have expired or been mistyped. Ask Servision for a fresh management link.</p>' +
       '</body></html>'
     );
@@ -716,10 +716,10 @@ function buildDashboardPage(dishKey, stats) {
   if (!stats.enabled) {
     return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dashboard — ${dishName}</title></head>
-<body style="font-family:system-ui;background:#111009;color:#F2EDE4;padding:40px;text-align:center">
+<body style="font-family:system-ui;background:#14120F;color:#F3ECDD;padding:40px;text-align:center">
 <h1 style="text-transform:capitalize">${dishName}</h1>
-<p style="color:#C8873A">Analytics not connected yet.</p>
-<p style="color:rgba(242,237,228,0.5);max-width:400px;margin:20px auto">The SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables need to be set in Railway to start collecting scan data.</p>
+<p style="color:#C9A66B">Analytics not connected yet.</p>
+<p style="color:rgba(243,236,221,0.5);max-width:400px;margin:20px auto">The SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables need to be set in Railway to start collecting scan data.</p>
 </body></html>`;
   }
 
@@ -745,18 +745,18 @@ function buildDashboardPage(dishKey, stats) {
   const maxDay = Math.max(1, ...days.map(d => d.count));
   const bars = days.map(d =>
     `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
-       <div style="width:100%;background:#C8873A;border-radius:3px 3px 0 0;height:${Math.round((d.count / maxDay) * 90)}px;min-height:2px" title="${d.count} scans"></div>
-       <div style="font-size:8px;color:rgba(242,237,228,0.4);transform:rotate(-45deg);white-space:nowrap">${d.label}</div>
+       <div style="width:100%;background:#C9A66B;border-radius:3px 3px 0 0;height:${Math.round((d.count / maxDay) * 90)}px;min-height:2px" title="${d.count} scans"></div>
+       <div style="font-size:8px;color:rgba(243,236,221,0.4);transform:rotate(-45deg);white-space:nowrap">${d.label}</div>
      </div>`
   ).join('');
 
   const lastScan = stats.lastScan ? new Date(stats.lastScan).toLocaleString() : 'Never';
 
   const card = (label, value, sub) =>
-    `<div style="background:#1A1812;border:1px solid rgba(200,135,58,0.2);border-radius:12px;padding:22px">
-       <div style="font-size:12px;color:rgba(242,237,228,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">${label}</div>
-       <div style="font-size:34px;font-weight:700;color:#F2EDE4">${value}</div>
-       ${sub ? `<div style="font-size:12px;color:#C8873A;margin-top:4px">${sub}</div>` : ''}
+    `<div style="background:#1E1A15;border:1px solid rgba(201,166,107,0.2);border-radius:12px;padding:22px">
+       <div style="font-size:12px;color:rgba(243,236,221,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">${label}</div>
+       <div style="font-size:34px;font-weight:700;color:#F3ECDD">${value}</div>
+       ${sub ? `<div style="font-size:12px;color:#C9A66B;margin-top:4px">${sub}</div>` : ''}
      </div>`;
 
   return `<!doctype html><html lang="en"><head>
@@ -764,11 +764,11 @@ function buildDashboardPage(dishKey, stats) {
 <title>Dashboard — ${dishName}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#111009;color:#F2EDE4;padding:24px;max-width:760px;margin:0 auto}
+body{font-family:system-ui,-apple-system,sans-serif;background:#14120F;color:#F3ECDD;padding:24px;max-width:760px;margin:0 auto}
 h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
-.sub{color:rgba(242,237,228,0.5);font-size:13px;margin-bottom:24px;text-transform:capitalize}
+.sub{color:rgba(243,236,221,0.5);font-size:13px;margin-bottom:24px;text-transform:capitalize}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px}
-.wide{background:#1A1812;border:1px solid rgba(200,135,58,0.2);border-radius:12px;padding:22px}
+.wide{background:#1E1A15;border:1px solid rgba(201,166,107,0.2);border-radius:12px;padding:22px}
 @media(min-width:560px){.grid{grid-template-columns:repeat(4,1fr)}}
 </style></head>
 <body>
@@ -783,7 +783,7 @@ h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
 </div>
 
 <div class="wide" style="margin-bottom:14px">
-  <div style="font-size:12px;color:rgba(242,237,228,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px">Scans — last 14 days</div>
+  <div style="font-size:12px;color:rgba(243,236,221,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px">Scans — last 14 days</div>
   <div style="display:flex;align-items:flex-end;gap:5px;height:110px">${bars}</div>
 </div>
 
@@ -793,7 +793,7 @@ h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
   ${card('Other', stats.devices.other)}
 </div>
 
-<div style="text-align:center;color:rgba(242,237,228,0.35);font-size:11px;margin-top:24px">
+<div style="text-align:center;color:rgba(243,236,221,0.35);font-size:11px;margin-top:24px">
   Last scan: ${lastScan} · Updates live
 </div>
 </body></html>`;
@@ -813,10 +813,10 @@ function buildMenuDashboard(menuKey, s) {
   };
 
   const card = (label, value, sub) =>
-    `<div style="background:#1A1812;border:1px solid rgba(200,135,58,0.2);border-radius:12px;padding:22px">
-       <div style="font-size:12px;color:rgba(242,237,228,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">${label}</div>
-       <div style="font-size:34px;font-weight:700;color:#F2EDE4">${value}</div>
-       ${sub ? `<div style="font-size:12px;color:#C8873A;margin-top:4px">${sub}</div>` : ''}
+    `<div style="background:#1E1A15;border:1px solid rgba(201,166,107,0.2);border-radius:12px;padding:22px">
+       <div style="font-size:12px;color:rgba(243,236,221,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">${label}</div>
+       <div style="font-size:34px;font-weight:700;color:#F3ECDD">${value}</div>
+       ${sub ? `<div style="font-size:12px;color:#C9A66B;margin-top:4px">${sub}</div>` : ''}
      </div>`;
 
   const maxInterest = Math.max(1, ...s.dishes.map(d => d.scans + d.taps));
@@ -827,15 +827,15 @@ function buildMenuDashboard(menuKey, s) {
     return `<div style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
         <div style="font-size:15px;text-transform:capitalize">
-          <span style="color:#C8873A;font-weight:700;margin-right:8px">${i + 1}</span>${name}
+          <span style="color:#C9A66B;font-weight:700;margin-right:8px">${i + 1}</span>${name}
         </div>
-        <div style="font-size:12px;color:rgba(242,237,228,0.5)">${interest} views · ${d.ar} in AR</div>
+        <div style="font-size:12px;color:rgba(243,236,221,0.5)">${interest} views · ${d.ar} in AR</div>
       </div>
       <div style="height:8px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:#C8873A;border-radius:4px"></div>
+        <div style="height:100%;width:${pct}%;background:#C9A66B;border-radius:4px"></div>
       </div>
     </div>`;
-  }).join('') : '<div style="color:rgba(242,237,228,0.45);text-align:center;padding:30px">No dish views yet — once customers start scanning the table QR, the most-wanted dishes appear here.</div>';
+  }).join('') : '<div style="color:rgba(243,236,221,0.45);text-align:center;padding:30px">No dish views yet — once customers start scanning the table QR, the most-wanted dishes appear here.</div>';
 
   const lastOpen = s.lastOpen ? new Date(s.lastOpen).toLocaleString() : 'Never';
 
@@ -844,11 +844,11 @@ function buildMenuDashboard(menuKey, s) {
 <title>Menu Dashboard — ${title}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#111009;color:#F2EDE4;padding:24px;max-width:780px;margin:0 auto}
+body{font-family:system-ui,-apple-system,sans-serif;background:#14120F;color:#F3ECDD;padding:24px;max-width:780px;margin:0 auto}
 h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
-.sub{color:rgba(242,237,228,0.5);font-size:13px;margin-bottom:24px;text-transform:capitalize}
+.sub{color:rgba(243,236,221,0.5);font-size:13px;margin-bottom:24px;text-transform:capitalize}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px}
-.wide{background:#1A1812;border:1px solid rgba(200,135,58,0.2);border-radius:12px;padding:24px}
+.wide{background:#1E1A15;border:1px solid rgba(201,166,107,0.2);border-radius:12px;padding:24px}
 @media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
 </style></head><body>
 <h1>${title} — Menu</h1>
@@ -862,12 +862,12 @@ h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
 </div>
 
 <div class="wide">
-  <div style="font-size:12px;color:rgba(242,237,228,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Most wanted dishes</div>
-  <div style="font-size:12px;color:rgba(242,237,228,0.4);margin-bottom:20px;line-height:1.5">Ranked by how many customers opened each dish. High interest + low sales usually means people are curious but hesitating — worth a better description, a photo, or a price look.</div>
+  <div style="font-size:12px;color:rgba(243,236,221,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Most wanted dishes</div>
+  <div style="font-size:12px;color:rgba(243,236,221,0.4);margin-bottom:20px;line-height:1.5">Ranked by how many customers opened each dish. High interest + low sales usually means people are curious but hesitating — worth a better description, a photo, or a price look.</div>
   ${rows}
 </div>
 
-<div style="text-align:center;color:rgba(242,237,228,0.35);font-size:11px;margin-top:24px">
+<div style="text-align:center;color:rgba(243,236,221,0.35);font-size:11px;margin-top:24px">
   Last menu scan: ${lastOpen} · Updates live
 </div>
 </body></html>`;
@@ -2591,25 +2591,25 @@ function buildARPage(dishName, brandName, topLabel, logoFileName, theme, socials
       fonts: 'Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600',
       display: "'Cormorant Garamond',serif",
       body: "'DM Sans',sans-serif",
-      vars: "--accent:#C8873A;--bg:#111009;--surface:#1A1812;--border:rgba(200,135,58,0.15);--border-dim:rgba(255,255,255,0.06);--fg:#F2EDE4;--muted:rgba(242,237,228,0.45)"
+      vars: "--accent:#C9A66B;--accent-rgb:201,166,107;--bg:#14120F;--surface:#1E1A15;--border:rgba(var(--accent-rgb),0.15);--border-dim:rgba(255,255,255,0.06);--fg:#F3ECDD;--muted:rgba(243,236,221,0.45)"
     },
     'light-minimal': {
       fonts: 'Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600&family=Inter:wght@400;500;600',
       display: "'Fraunces',serif",
       body: "'Inter',sans-serif",
-      vars: "--accent:#B4523A;--bg:#F6F3EE;--surface:#FFFFFF;--border:rgba(30,25,20,0.12);--border-dim:rgba(30,25,20,0.06);--fg:#1E1914;--muted:rgba(30,25,20,0.5)"
+      vars: "--accent:#B4523A;--accent-rgb:180,82,58;--bg:#F6F3EE;--surface:#FFFFFF;--border:rgba(30,25,20,0.12);--border-dim:rgba(30,25,20,0.06);--fg:#1E1914;--muted:rgba(30,25,20,0.5)"
     },
     'bold-modern': {
       fonts: 'Space+Grotesk:wght@400;500;700',
       display: "'Space Grotesk',sans-serif",
       body: "'Space Grotesk',sans-serif",
-      vars: "--accent:#E8FF5A;--bg:#0C0C0E;--surface:#161619;--border:rgba(232,255,90,0.18);--border-dim:rgba(255,255,255,0.06);--fg:#F5F5F5;--muted:rgba(245,245,245,0.5)"
+      vars: "--accent:#E8FF5A;--accent-rgb:232,255,90;--bg:#0C0C0E;--surface:#161619;--border:rgba(232,255,90,0.18);--border-dim:rgba(255,255,255,0.06);--fg:#F5F5F5;--muted:rgba(245,245,245,0.5)"
     },
     'warm-trattoria': {
       fonts: 'Playfair+Display:ital,wght@0,400;0,700;1,400&family=Nunito+Sans:wght@400;600;700',
       display: "'Playfair Display',serif",
       body: "'Nunito Sans',sans-serif",
-      vars: "--accent:#9C2B2B;--bg:#1C1410;--surface:#271C16;--border:rgba(212,160,90,0.20);--border-dim:rgba(255,255,255,0.06);--fg:#F5E9D8;--muted:rgba(245,233,216,0.5)"
+      vars: "--accent:#9C2B2B;--accent-rgb:156,43,43;--bg:#1C1410;--surface:#271C16;--border:rgba(212,160,90,0.20);--border-dim:rgba(255,255,255,0.06);--fg:#F5E9D8;--muted:rgba(245,233,216,0.5)"
     }
   };
   const t = THEMES[theme] || THEMES['dark-elegant'];
@@ -2638,7 +2638,7 @@ model-viewer{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;t
 .page{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;padding:max(env(safe-area-inset-top),16px) 28px max(env(safe-area-inset-bottom),16px)}
 .lang-toggle{position:absolute;top:max(env(safe-area-inset-top),14px);right:16px;display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
 .lang-btn{background:none;border:none;color:var(--muted);font-family:inherit;font-size:10px;font-weight:700;letter-spacing:.06em;padding:5px 10px;cursor:pointer;transition:all .15s}
-.lang-btn.active{background:rgba(200,135,58,.15);color:var(--amber)}
+.lang-btn.active{background:rgba(var(--accent-rgb),.15);color:var(--amber)}
 .top-label{display:flex;align-items:center;gap:12px;margin-bottom:4px}
 .top-line{flex:1;height:1px;max-width:40px;background:var(--border)}
 .top-text{font-size:13px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--amber)}
@@ -2650,12 +2650,12 @@ model-viewer{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;t
 .tap-arrow{font-size:12px;color:var(--amber);letter-spacing:.12em;text-transform:uppercase;font-weight:600;margin-top:18px;display:flex;align-items:center;gap:8px;animation:pulse-arrow 2s ease-in-out infinite}
 .tap-arrow::before{content:'';display:block;width:0;height:0;border-left:7px solid var(--amber);border-top:5px solid transparent;border-bottom:5px solid transparent;opacity:.8}
 .ar-btn{position:relative;width:min(62vw,250px);height:min(62vw,250px);border-radius:50%;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center}
-.ring1{position:absolute;inset:-18px;border-radius:50%;border:1px solid rgba(200,135,58,.12);animation:breathe 4s ease-in-out infinite}
-.ring2{position:absolute;inset:-36px;border-radius:50%;border:1px solid rgba(200,135,58,.06);animation:breathe 4s .8s ease-in-out infinite}
-.face{position:relative;width:100%;height:100%;border-radius:50%;border:1px solid var(--border);background:radial-gradient(circle at 38% 32%,rgba(200,135,58,.1) 0%,transparent 55%),radial-gradient(circle at 65% 72%,rgba(200,135,58,.05) 0%,transparent 45%),#1A1812;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;overflow:hidden;animation:glow 4s ease-in-out infinite}
+.ring1{position:absolute;inset:-18px;border-radius:50%;border:1px solid rgba(var(--accent-rgb),.12);animation:breathe 4s ease-in-out infinite}
+.ring2{position:absolute;inset:-36px;border-radius:50%;border:1px solid rgba(var(--accent-rgb),.06);animation:breathe 4s .8s ease-in-out infinite}
+.face{position:relative;width:100%;height:100%;border-radius:50%;border:1px solid var(--border);background:radial-gradient(circle at 38% 32%,rgba(var(--accent-rgb),.1) 0%,transparent 55%),radial-gradient(circle at 65% 72%,rgba(var(--accent-rgb),.05) 0%,transparent 45%),#1E1A15;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;overflow:hidden;animation:glow 4s ease-in-out infinite}
 .ar-btn:active .face{transform:scale(.96)}
 .face::after{content:'';position:absolute;top:-40%;left:-50%;width:35%;height:180%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.04),transparent);transform:skewX(-15deg);animation:sweep 5s ease-in-out infinite}
-.rim{position:absolute;inset:14px;border-radius:50%;border:1px solid rgba(200,135,58,.12);pointer-events:none}
+.rim{position:absolute;inset:14px;border-radius:50%;border:1px solid rgba(var(--accent-rgb),.12);pointer-events:none}
 .brand{display:flex;flex-direction:column;align-items:center;gap:6px;z-index:1}
 .brand-name{font-family:${t.display};font-size:28px;font-weight:600;color:var(--fg);line-height:1.1;text-align:center;padding:0 16px}
 .brand-div{width:32px;height:1px;background:var(--border)}
@@ -2668,7 +2668,7 @@ model-viewer{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;t
 .compat{margin-top:16px;display:flex;align-items:center;gap:12px;font-size:10.5px;color:var(--muted)}
 .dot{width:2px;height:2px;border-radius:50%;background:var(--border)}
 @keyframes breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.03)}}
-@keyframes glow{0%,100%{box-shadow:0 4px 40px rgba(200,135,58,.08)}50%{box-shadow:0 4px 70px rgba(200,135,58,.18)}}
+@keyframes glow{0%,100%{box-shadow:0 4px 40px rgba(var(--accent-rgb),.08)}50%{box-shadow:0 4px 70px rgba(var(--accent-rgb),.18)}}
 @keyframes sweep{0%{left:-50%;opacity:0}20%{opacity:1}60%{left:130%;opacity:0}100%{left:130%;opacity:0}}
 @keyframes pulse-arrow{0%,100%{opacity:.6;transform:translateX(0)}50%{opacity:1;transform:translateX(4px)}}
 ${SOCIAL_CSS}

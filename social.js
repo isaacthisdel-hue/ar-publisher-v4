@@ -86,7 +86,7 @@ function buildSocialRow(socials) {
 // Shared CSS for the social row — inject once per page.
 const SOCIAL_CSS =
   '.social-row{display:flex;gap:16px;justify-content:center;align-items:center;margin-top:18px}' +
-  '.social-row .soc{color:var(--accent,#C8873A);opacity:.82;transition:opacity .15s, transform .15s;display:inline-flex;-webkit-tap-highlight-color:transparent}' +
+  '.social-row .soc{color:var(--accent,#C9A66B);opacity:.82;transition:opacity .15s, transform .15s;display:inline-flex;-webkit-tap-highlight-color:transparent}' +
   '.social-row .soc:active{transform:scale(.9)}' +
   '@media(hover:hover){.social-row .soc:hover{opacity:1;transform:translateY(-2px)}}';
 

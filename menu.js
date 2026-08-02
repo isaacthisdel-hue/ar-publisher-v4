@@ -71,7 +71,7 @@ const MENU_THEMES = {
     fonts: 'Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600',
     display: "'Cormorant Garamond',serif",
     body: "'DM Sans',sans-serif",
-    vars: "--accent:#C8873A;--bg:#111009;--surface:#1A1812;--border:rgba(200,135,58,0.18);--fg:#F2EDE4;--muted:rgba(242,237,228,0.45)"
+    vars: "--accent:#C9A66B;--bg:#14120F;--surface:#1E1A15;--border:rgba(201,166,107,0.18);--fg:#F3ECDD;--muted:rgba(243,236,221,0.45)"
   },
   'light-minimal': {
     fonts: 'Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600&family=Inter:wght@400;500;600',
