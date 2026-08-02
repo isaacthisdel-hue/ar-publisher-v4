@@ -155,7 +155,7 @@ function buildMenuPage(manifest, basePath) {
       );
     }).join('');
     const head = collectionName ? '<div class="collection-head">' + esc(collectionName) + '</div>' : '';
-    return '<div class="collection-group">' + head + dishCards + '</div>';
+    return '<div class="collection-group">' + head + '<div class="collection-body">' + dishCards + '</div></div>';
   }).join('');
 
   const emptyState =
@@ -201,7 +201,20 @@ header{text-align:center;margin-bottom:26px}
 .rule{width:44px;height:1px;background:var(--accent);opacity:.5;margin:12px auto}
 .kicker{font-size:10.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
 .lead{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.5}
-.search-wrap{position:relative;margin:18px 0 4px}
+.search-wrap{position:relative;margin:18px auto 4px;max-width:480px}
+.collection-body{display:flex;flex-direction:column;gap:10px}
+@media(min-width:760px){
+  body{padding-left:40px;padding-right:40px}
+  .wrap{max-width:980px}
+  .brand-name{font-size:44px}
+  .lead{font-size:14.5px}
+  .collection-body{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .dish{padding:20px 22px}
+}
+@media(min-width:1180px){
+  .wrap{max-width:1220px}
+  .collection-body{grid-template-columns:repeat(3,1fr)}
+}
 .search-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;
   padding:13px 16px 13px 42px;font-family:inherit;font-size:15px;color:var(--fg);outline:none;
   -webkit-appearance:none;appearance:none;transition:border-color .15s ease}
@@ -423,14 +436,16 @@ function buildManagePage(opts) {
 html,body{min-height:100%;background:var(--bg);color:var(--fg);font-family:${t.body};-webkit-font-smoothing:antialiased}
 body{padding:max(env(safe-area-inset-top),22px) 18px max(env(safe-area-inset-bottom),40px)}
 .wrap{max-width:560px;margin:0 auto}
-header{margin-bottom:22px}
+.dash-layout{display:flex;flex-direction:column;gap:22px}
+header{margin-bottom:0}
 .brand-name{font-family:${t.display};font-size:26px;font-weight:600;line-height:1.15}
 .kicker{font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-top:4px}
 .lead{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
 .status-msg{font-size:12.5px;color:var(--accent);min-height:16px;margin-top:10px}
 .group{margin-bottom:22px}
 .group-head{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;padding:0 2px}
-.row{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.group-body{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
 .row-top{display:flex;align-items:center;gap:12px}
 .row-name{flex:1;min-width:0;font-size:15px;overflow-wrap:anywhere}
 .row-name.off{color:var(--muted);text-decoration:line-through}
@@ -449,17 +464,32 @@ header{margin-bottom:22px}
 .empty{text-align:center;padding:52px 20px;border:1px dashed var(--border);border-radius:14px;color:var(--muted);font-size:13px}
 .error{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px}
 footer{text-align:center;margin-top:30px;font-size:10.5px;color:var(--muted)}
+@media(min-width:860px){
+  body{padding-left:48px;padding-right:48px}
+  .wrap{max-width:1040px}
+  .dash-layout{display:grid;grid-template-columns:280px 1fr;gap:48px;align-items:start}
+  header{position:sticky;top:32px}
+  .brand-name{font-size:30px}
+  .group-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  footer{grid-column:1 / -1;margin-top:8px}
+}
+@media(min-width:1300px){
+  .wrap{max-width:1200px}
+  .group-body{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div class="brand-name">${esc(restaurantName)}</div>
-    <div class="kicker">Manage your menu</div>
-    <p class="lead">Turn a dish off if you're out for the day — it disappears from your table QR menu instantly. Group dishes into sections like "Breakfast" or "Supper" by typing a section name next to each dish.</p>
-    <div class="status-msg" id="statusMsg"></div>
-  </header>
-  <div id="menuBody">Loading your menu…</div>
+  <div class="dash-layout">
+    <header>
+      <div class="brand-name">${esc(restaurantName)}</div>
+      <div class="kicker">Manage your menu</div>
+      <p class="lead">Turn a dish off if you're out for the day — it disappears from your table QR menu instantly. Group dishes into sections like "Breakfast" or "Supper" by typing a section name next to each dish.</p>
+      <div class="status-msg" id="statusMsg"></div>
+    </header>
+    <div id="menuBody">Loading your menu…</div>
+  </div>
   <footer>Servision — changes here take effect immediately, no need to call us.</footer>
 </div>
 <datalist id="collectionOptions"></datalist>
@@ -514,7 +544,7 @@ function renderMenu(dishes) {
   body.innerHTML = order.map(function(key) {
     var head = key ? '<div class="group-head">' + key.replace(/</g,'&lt;') + '</div>' : '';
     var rows = groups[key].map(function(d) { return dishRowHtml(d); }).join('');
-    return '<div class="group">' + head + rows + '</div>';
+    return '<div class="group">' + head + '<div class="group-body">' + rows + '</div></div>';
   }).join('');
 
   order.forEach(function(key) {

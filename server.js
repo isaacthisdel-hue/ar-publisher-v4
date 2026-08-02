@@ -780,6 +780,7 @@ h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px}
 .wide{background:#1E1A15;border:1px solid rgba(201,166,107,0.2);border-radius:12px;padding:22px}
 @media(min-width:560px){.grid{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:900px){body{max-width:960px;padding:40px}h1{font-size:32px}}
 </style></head>
 <body>
 <h1>${dishName}</h1>
@@ -860,6 +861,7 @@ h1{text-transform:capitalize;font-size:26px;margin-bottom:2px}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px}
 .wide{background:#1E1A15;border:1px solid rgba(201,166,107,0.2);border-radius:12px;padding:24px}
 @media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:900px){body{max-width:980px;padding:40px}h1{font-size:32px}}
 </style></head><body>
 <h1>${title} — Menu</h1>
 <div class="sub">${restaurant} · Servision Analytics</div>
@@ -2680,6 +2682,9 @@ function buildARPage(dishName, brandName, topLabel, logoFileName, theme, socials
 html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:${t.body}}
 model-viewer{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:0;left:0}
 .page{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;padding:max(env(safe-area-inset-top),16px) 28px max(env(safe-area-inset-bottom),16px)}
+.shell{width:100%;display:flex;flex-direction:column;align-items:center;flex:1;min-height:0}
+.info-col{display:flex;flex-direction:column;align-items:center;width:100%;flex:1;min-height:0;justify-content:center}
+.desktop-note{display:none;font-size:12px;color:var(--muted);line-height:1.6;margin-top:16px;max-width:360px;text-align:center}
 .lang-toggle{position:absolute;top:max(env(safe-area-inset-top),14px);right:16px;display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
 .lang-btn{background:none;border:none;color:var(--muted);font-family:inherit;font-size:10px;font-weight:700;letter-spacing:.06em;padding:5px 10px;cursor:pointer;transition:all .15s}
 .lang-btn.active{background:rgba(var(--accent-rgb),.15);color:var(--amber)}
@@ -2717,56 +2722,73 @@ model-viewer{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;t
 @keyframes pulse-arrow{0%,100%{opacity:.6;transform:translateX(0)}50%{opacity:1;transform:translateX(4px)}}
 ${SOCIAL_CSS}
 ${REVIEW_CSS}
+@media(min-width:900px){
+  html,body{height:auto;overflow:visible}
+  .page{position:relative;min-height:100vh;padding:64px 48px}
+  .shell{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;flex:none}
+  .info-col{flex:none;justify-content:center}
+  model-viewer{position:relative;width:100%;height:480px;opacity:1;pointer-events:auto;top:auto;left:auto;
+    border-radius:22px;background:var(--surface);border:1px solid var(--border)}
+  .center-wrap{display:none}
+  .desktop-note{display:block}
+}
 </style>
 </head>
 <body>
-<model-viewer 
-    src="model.glb" 
-    ios-src="model.usdz" 
-    ar 
-    ar-modes="webxr scene-viewer quick-look"
-    loading="eager"
-    reveal="auto"
-    exposure="1.0"
-    shadow-intensity="1"
-    shadow-softness="0.6"
-    style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:0;left:0;"
-    id="mv">
-</model-viewer>
 <div class="page">
   <div class="lang-toggle">
     <button class="lang-btn active" id="lang-en" onclick="setLang('en')">EN</button>
     <button class="lang-btn" id="lang-fr" onclick="setLang('fr')">FR</button>
   </div>
-  ${topLabelHTML}
-  <div class="title-block">
-    <div class="dish-name">${dishName}</div>
-    <div class="dish-sub" id="txt-sub">Tap to bring this dish to life in your space</div>
-  </div>
-  <div class="center-wrap">
-    <button class="ar-btn" id="arBtn">
-      <div class="ring1"></div><div class="ring2"></div>
-      <div class="face">
-        <div class="rim"></div>
-        <div class="brand">
-          <div class="brand-name" id="txt-circle">See it on<br>your table</div>
-          <div class="brand-div"></div>
-          <div class="brand-sub" id="txt-view">👆 Tap here</div>
+  <div class="shell">
+    <model-viewer
+        src="model.glb"
+        ios-src="model.usdz"
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+        loading="eager"
+        reveal="auto"
+        exposure="1.0"
+        shadow-intensity="1"
+        shadow-softness="0.6"
+        camera-controls
+        auto-rotate
+        auto-rotate-delay="0"
+        id="mv">
+    </model-viewer>
+    <div class="info-col">
+      ${topLabelHTML}
+      <div class="title-block">
+        <div class="dish-name">${dishName}</div>
+        <div class="dish-sub" id="txt-sub">Tap to bring this dish to life in your space</div>
+      </div>
+      <div class="center-wrap">
+        <button class="ar-btn" id="arBtn">
+          <div class="ring1"></div><div class="ring2"></div>
+          <div class="face">
+            <div class="rim"></div>
+            <div class="brand">
+              <div class="brand-name" id="txt-circle">See it on<br>your table</div>
+              <div class="brand-div"></div>
+              <div class="brand-sub" id="txt-view">👆 Tap here</div>
+            </div>
+          </div>
+        </button>
+        <div class="tap-arrow" id="txt-tap-label">Tap the circle</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-l" id="txt-s1">Tap the circle</div></div>
+          <div class="step-line"></div>
+          <div class="step"><div class="step-n">2</div><div class="step-l" id="txt-s2">Point at your table</div></div>
+          <div class="step-line"></div>
+          <div class="step"><div class="step-n">3</div><div class="step-l" id="txt-s3">See it appear</div></div>
         </div>
       </div>
-    </button>
-    <div class="tap-arrow" id="txt-tap-label">Tap the circle</div>
-    <div class="steps">
-      <div class="step"><div class="step-n">1</div><div class="step-l" id="txt-s1">Tap the circle</div></div>
-      <div class="step-line"></div>
-      <div class="step"><div class="step-n">2</div><div class="step-l" id="txt-s2">Point at your table</div></div>
-      <div class="step-line"></div>
-      <div class="step"><div class="step-n">3</div><div class="step-l" id="txt-s3">See it appear</div></div>
+      <p class="desktop-note" id="txt-desktop-note">Drag to rotate, scroll to zoom. Scan this page with your phone to place it on your table in AR.</p>
+      <div class="compat"><span id="txt-c1">Works on iPhone & Android</span><span class="dot"></span><span id="txt-c2">No app needed</span></div>
+      ${buildReviewBlock(reviewUrl, 'en')}
+      ${buildSocialRow(socials)}
     </div>
   </div>
-  <div class="compat"><span id="txt-c1">Works on iPhone & Android</span><span class="dot"></span><span id="txt-c2">No app needed</span></div>
-  ${buildReviewBlock(reviewUrl, 'en')}
-  ${buildSocialRow(socials)}
 </div>
 <script>
 var mv = document.getElementById('mv');
@@ -2818,8 +2840,8 @@ document.getElementById('arBtn').addEventListener('click', function() {
   }
 });
 var T = {
-  en:{sub:'Tap to bring this dish to life in your space',circle:'See it on<br>your table',view:'👆 Tap here',tap:'Tap the circle',s1:'Tap the circle',s2:'Point at your table',s3:'See it appear',c1:'Works on iPhone & Android',c2:'No app needed'},
-  fr:{sub:'Appuyez pour voir ce plat prendre vie dans votre espace',circle:'Sur votre<br>table',view:'👆 Appuyez ici',tap:'Appuyez le cercle',s1:'Appuyez le cercle',s2:'Pointez vers la table',s3:'Le voir apparaître',c1:'Compatible iPhone & Android',c2:'Sans application'}
+  en:{sub:'Tap to bring this dish to life in your space',circle:'See it on<br>your table',view:'👆 Tap here',tap:'Tap the circle',s1:'Tap the circle',s2:'Point at your table',s3:'See it appear',c1:'Works on iPhone & Android',c2:'No app needed',note:'Drag to rotate, scroll to zoom. Scan this page with your phone to place it on your table in AR.'},
+  fr:{sub:'Appuyez pour voir ce plat prendre vie dans votre espace',circle:'Sur votre<br>table',view:'👆 Appuyez ici',tap:'Appuyez le cercle',s1:'Appuyez le cercle',s2:'Pointez vers la table',s3:'Le voir apparaître',c1:'Compatible iPhone & Android',c2:'Sans application',note:'Glissez pour faire pivoter, molette pour zoomer. Scannez cette page avec votre téléphone pour le placer sur votre table en RA.'}
 };
 function setLang(l) {
   var t=T[l];
@@ -2832,6 +2854,7 @@ function setLang(l) {
   document.getElementById('txt-s3').textContent=t.s3;
   document.getElementById('txt-c1').textContent=t.c1;
   document.getElementById('txt-c2').textContent=t.c2;
+  document.getElementById('txt-desktop-note').textContent=t.note;
   // Review CTA (only present if a review link was set)
   var rev = { en:{revHead:'Enjoyed your meal?',revSub:'Share your experience in 30 seconds',revBtn:'Leave a Google review'}, fr:{revHead:'Vous avez aimé votre repas ?',revSub:'Partagez votre expérience en 30 secondes',revBtn:'Laisser un avis Google'} };
   var rt = rev[l] || rev.en;
