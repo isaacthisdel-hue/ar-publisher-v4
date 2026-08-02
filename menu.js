@@ -430,10 +430,16 @@ header{margin-bottom:22px}
 .status-msg{font-size:12.5px;color:var(--accent);min-height:16px;margin-top:10px}
 .group{margin-bottom:22px}
 .group-head{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;padding:0 2px}
-.row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.row{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.row-top{display:flex;align-items:center;gap:12px}
 .row-name{flex:1;min-width:0;font-size:15px;overflow-wrap:anywhere}
 .row-name.off{color:var(--muted);text-decoration:line-through}
-.collection-input{width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 9px;
+.row-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.row-links{display:flex;align-items:center;gap:7px;font-size:11.5px}
+.row-link{color:var(--muted);text-decoration:none;transition:color .15s}
+.row-link:hover{color:var(--accent)}
+.row-dot{color:var(--border)}
+.collection-input{width:120px;flex-shrink:0;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 9px;
   font-family:inherit;font-size:12px;color:var(--fg);outline:none}
 .collection-input:focus{border-color:color-mix(in srgb, var(--accent) 55%, transparent)}
 .toggle{position:relative;width:42px;height:24px;border-radius:12px;background:var(--border);border:none;cursor:pointer;flex-shrink:0;transition:background .15s ease}
@@ -516,13 +522,27 @@ function renderMenu(dishes) {
   });
 }
 
+function dishUrl(slug) {
+  return 'https://ar.servision.ca/' + STATE.slug + (STATE.branch ? '/' + STATE.branch : '') + '/' + slug + '/';
+}
+
 function dishRowHtml(d) {
   var nameClass = d.available ? 'row-name' : 'row-name off';
+  var url = dishUrl(d.slug);
   return (
     '<div class="row" data-slug="' + d.slug + '">' +
-      '<span class="' + nameClass + '" id="name-' + d.slug + '">' + d.name.replace(/</g,'&lt;') + '</span>' +
-      '<input class="collection-input" list="collectionOptions" placeholder="Section" value="' + (d.collection||'').replace(/"/g,'&quot;') + '" id="coll-' + d.slug + '">' +
-      '<button type="button" class="toggle' + (d.available ? ' on' : '') + '" id="toggle-' + d.slug + '" aria-label="Toggle availability"><span class="toggle-knob"></span></button>' +
+      '<div class="row-top">' +
+        '<span class="' + nameClass + '" id="name-' + d.slug + '">' + d.name.replace(/</g,'&lt;') + '</span>' +
+        '<button type="button" class="toggle' + (d.available ? ' on' : '') + '" id="toggle-' + d.slug + '" aria-label="Toggle availability"><span class="toggle-knob"></span></button>' +
+      '</div>' +
+      '<div class="row-bottom">' +
+        '<div class="row-links">' +
+          '<a class="row-link" href="' + url + '" target="_blank" rel="noopener">View dish</a>' +
+          '<span class="row-dot">&middot;</span>' +
+          '<a class="row-link" href="' + url + 'dashboard" target="_blank" rel="noopener">Stats</a>' +
+        '</div>' +
+        '<input class="collection-input" list="collectionOptions" placeholder="Section" value="' + (d.collection||'').replace(/"/g,'&quot;') + '" id="coll-' + d.slug + '">' +
+      '</div>' +
     '</div>'
   );
 }
