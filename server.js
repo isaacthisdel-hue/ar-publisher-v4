@@ -2913,6 +2913,15 @@ document.getElementById('arBtn').addEventListener('click', function() {
   if (gotIt) gotIt.addEventListener('click', closeHelp);
   if (overlay) overlay.addEventListener('click', function(e){ if (e.target === overlay) closeHelp(); });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeHelp(); });
+
+  // Force it open on every visit (mobile only -- this whole flow is
+  // mobile-only, same breakpoint as the desktop CSS at 900px) so people
+  // actually see the placement instructions instead of needing to notice
+  // and tap the help button themselves. Still fully dismissible via any
+  // of the close paths above.
+  if (window.matchMedia('(max-width: 899px)').matches) {
+    setTimeout(openHelp, 500);
+  }
 })();
 var T = {
   en:{sub:'Tap to bring this dish to life in your space',circle:'See it on<br>your table',view:'👆 Tap here',tap:'Tap the circle',s1:'Tap the circle',s2:'Point at your table',s3:'See it appear',c1:'Works on iPhone & Android',c2:'No app needed',note:'Drag to rotate, scroll to zoom.',qr:'Scan to open on your phone',helpBtn:'How do I place it?',helpTitle:'Placing it on your table',helpSub:'Three quick steps',helpS1:'Tap the circle',helpS2:'Give it a second to load',helpS3:'Aim at a spot on the table, phone tilted down',helpCaption:'Hold it up high, angled down toward the table',helpGotIt:'Got it',helpFlat:'Too low',helpGood:'Just right'},
