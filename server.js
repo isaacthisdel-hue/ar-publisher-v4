@@ -8,7 +8,7 @@ const { manifestPath, upsertDish, buildMenuPage, buildManagePage, MANIFEST } = r
 const { buildSocialRow, SOCIAL_CSS, cleanSocials, buildReviewBlock, REVIEW_CSS, REVIEW_I18N } = require('./social');
 const {
   storageEnabled, storageBackend, loadRestaurants, persistUpsert, persistDelete, DATA_DIR,
-  generateManageToken, overridesEnabled, loadOverrides, saveOverride,
+  generateManageToken, overridesEnabled, loadOverrides, saveOverride, checkHealth,
 } = require('./store');
 
 const app = express();
@@ -199,6 +199,16 @@ app.get('/api/restaurants/:slug/manage-link', (req, res) => {
   const token = ensureManageToken(slug);
   const url = 'https://ar.servision.ca/' + slug + (branchSlug ? '/' + branchSlug : '') + '/manage/' + token;
   res.json({ success: true, url });
+});
+
+// Actually exercises the persistence backend (not just "is the env var
+// set") so a missing table/column/bad credentials shows up as a clear,
+// specific banner in the console instead of silently degrading to
+// "nothing saves" until a restaurant's data vanishes on the next deploy.
+app.get('/api/persistence-status', async (req, res) => {
+  if (!getToken(req)) return res.status(401).json({ error: 'Not logged in' });
+  const health = await checkHealth();
+  res.json(health);
 });
 
 // ── OWNER MENU MANAGEMENT (no GitHub login — private token in the URL) ────────
@@ -968,6 +978,10 @@ body.app{display:grid;grid-template-columns:248px 1fr;grid-template-rows:100vh;p
 .metric-num{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--bronze-deep);font-variant-numeric:tabular-nums;line-height:1}
 .metric-lbl{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-top:5px}
 .workspace-inner{padding:32px 44px 90px;max-width:1200px}
+.persist-banner{display:flex;align-items:flex-start;gap:10px;background:rgba(200,60,50,.12);border:1px solid rgba(200,60,50,.4);
+  color:#F5D9D5;border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13px;line-height:1.55}
+.persist-banner-icon{flex-shrink:0;font-size:15px}
+.persist-banner a{color:#F5D9D5;text-decoration:underline}
 
 /* section visibility */
 .section{display:none}
@@ -1153,6 +1167,10 @@ ${!loggedIn ? `
     </div>
   </div>
   <div class="workspace-inner">
+  <div id="persist-banner" class="persist-banner" style="display:none">
+    <span class="persist-banner-icon">⚠</span>
+    <span id="persist-banner-text">Checking data persistence…</span>
+  </div>
   <div class="card">
 
   <!-- COMMAND CENTER (popup, opened via the Mission button) -->
@@ -1886,7 +1904,33 @@ function onRestaurantChange() {
 
 if (document.getElementById('restaurantSelect')) loadRestaurantDropdown();
 // Load restaurants immediately on page ready so Command Center has real counts
-if (document.querySelector('body.app')) { loadRestaurants(); openCommandModal(); }
+// Actually checks that restaurant data is being saved somewhere durable
+// -- not just that the env vars look set -- and puts a banner impossible
+// to miss at the top of the console if it isn't. Without this, a missing
+// Supabase table/column fails completely silently: everything looks fine
+// in the running app, then the next deploy quietly loses data.
+function checkPersistenceHealth() {
+  fetch('/api/persistence-status')
+    .then(function(r) { return r.json(); })
+    .then(function(health) {
+      var banner = document.getElementById('persist-banner');
+      var text = document.getElementById('persist-banner-text');
+      if (!banner || !text) return;
+      if (health.ok) { banner.style.display = 'none'; return; }
+      banner.style.display = 'flex';
+      if (health.backend === 'memory') {
+        text.textContent = 'No database is connected. Every restaurant, dish toggle, and manage link will be lost on the next deploy. Set SUPABASE_URL / SUPABASE_SERVICE_KEY in Railway or attach a Volume.';
+      } else {
+        text.textContent = 'Database connected, but a write/read is failing: ' + (health.error || 'unknown error') + '. Data is NOT saving reliably -- run the setup SQL in store.js and redeploy.';
+      }
+    })
+    .catch(function() {
+      var banner = document.getElementById('persist-banner');
+      var text = document.getElementById('persist-banner-text');
+      if (banner && text) { banner.style.display = 'flex'; text.textContent = 'Could not check data persistence status — try reloading.'; }
+    });
+}
+if (document.querySelector('body.app')) { loadRestaurants(); openCommandModal(); checkPersistenceHealth(); }
 
 // ── RESTAURANT MANAGER ────────────────────────────────────────────────────────
 function loadRestaurants() {

@@ -160,14 +160,41 @@ async function loadRestaurants() {
 // has to rewrite the whole file since it has no per-row upsert).
 async function persistUpsert(slug, restaurant, allRestaurants) {
   if (supabaseEnabled()) {
+    const row = restaurantToRow(slug, restaurant);
     try {
       await sb(TABLE + '?on_conflict=slug', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(restaurantToRow(slug, restaurant)),
+        body: JSON.stringify(row),
       });
     } catch (e) {
-      console.error('Failed to save restaurant to Supabase:', e.message);
+      // Most likely cause: the manage_token column hasn't been added to
+      // the restaurants table yet (the ALTER TABLE was never run). Without
+      // this fallback, THAT alone would silently fail to save anything for
+      // this restaurant -- not just its manage token -- every single time,
+      // which is exactly the "everything resets after a deploy" bug.
+      // Retry once without manage_token so the rest of the record (name,
+      // branches, socials...) still persists; only the manage-link feature
+      // degrades until the migration is run.
+      if ('manage_token' in row) {
+        try {
+          const { manage_token, ...rowWithoutToken } = row;
+          await sb(TABLE + '?on_conflict=slug', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(rowWithoutToken),
+          });
+          console.error(
+            'Saved restaurant "' + slug + '" to Supabase WITHOUT manage_token ' +
+            '(column likely missing -- run: alter table restaurants add column if not exists manage_token text;). ' +
+            'Original error: ' + e.message
+          );
+        } catch (e2) {
+          console.error('Failed to save restaurant "' + slug + '" to Supabase (retry without manage_token also failed):', e2.message);
+        }
+      } else {
+        console.error('Failed to save restaurant "' + slug + '" to Supabase:', e.message);
+      }
     }
     return;
   }
@@ -244,7 +271,28 @@ async function saveOverride(restaurantSlug, branchSlug, dishSlug, values) {
   }
 }
 
+// Actually exercises the active backend (not just "is the env var set")
+// so a missing table / missing column / bad credentials shows up as a
+// clear, specific error instead of silently degrading to "nothing saves."
+async function checkHealth() {
+  if (supabaseEnabled()) {
+    try {
+      await sb(TABLE + '?select=slug&limit=1');
+    } catch (e) {
+      return { ok: false, backend: 'supabase', error: 'restaurants table: ' + e.message };
+    }
+    try {
+      await sb(OVERRIDES_TABLE + '?select=restaurant_slug&limit=1');
+    } catch (e) {
+      return { ok: false, backend: 'supabase', error: 'dish_overrides table: ' + e.message };
+    }
+    return { ok: true, backend: 'supabase', error: null };
+  }
+  if (volumeEnabled()) return { ok: true, backend: 'volume', error: null };
+  return { ok: false, backend: 'memory', error: 'No SUPABASE_URL/SUPABASE_SERVICE_KEY and no writable Railway Volume -- restaurant data is memory-only and will be lost on every redeploy.' };
+}
+
 module.exports = {
   storageEnabled, storageBackend, loadRestaurants, persistUpsert, persistDelete, DATA_DIR,
-  generateManageToken, overridesEnabled, loadOverrides, saveOverride,
+  generateManageToken, overridesEnabled, loadOverrides, saveOverride, checkHealth,
 };
